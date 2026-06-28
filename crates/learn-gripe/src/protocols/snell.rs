@@ -25,14 +25,22 @@
 //! (server->client). One chunk == one datagram, so the AEAD boundary preserves
 //! packet boundaries.
 //!
-//! Scoped out for follow-up (kept explicit so traffic is never mis-framed):
-//! session reuse / connection pooling, the v4/v5 connection types, and
-//! `obfs-opts` (http / tls simple-obfs).
+//! v2 supports **sequential session reuse**: after a stream finishes, both
+//! sides exchange a zero-length AEAD chunk (Snell's half-close) without closing
+//! the TCP, and the next request rides the same connection (continuous
+//! shadowaead nonces). Such connections are parked in a per-server pool and
+//! preferred over a fresh dial, mirroring the AnyTLS session registry.
+//!
+//! Scoped out for follow-up (kept explicit so traffic is never mis-framed): the
+//! v4/v5 connection types (a different, non-shadowaead encryption).
 
+use std::collections::HashMap;
 use std::io;
 use std::net::SocketAddr;
 use std::pin::Pin;
+use std::sync::Mutex as StdMutex;
 use std::task::{Context as TaskContext, Poll, ready};
+use std::time::{Duration, Instant};
 
 use aes_gcm::Aes128Gcm;
 use aes_gcm::aead::generic_array::GenericArray;
@@ -97,7 +105,7 @@ impl SnellCipher {
 /// disguising it as innocuous HTTP or TLS 1.2 traffic. The framing is the same
 /// one-shot-header simple-obfs the Shadowsocks plugin uses, applied beneath the
 /// AEAD layer so it covers both TCP and UDP-over-TCP.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum SnellObfs {
     /// http mode: a fake WebSocket-upgrade request; `host`/`path` populate it.
     Http { host: String, path: String },
@@ -192,8 +200,8 @@ impl SnellOutboundConfig {
         }
     }
 
-    /// The request command: v2 negotiates the reuse-capable command, v1/v3 use
-    /// the plain connect command (reuse / half-close is not implemented).
+    /// The request command: v2 negotiates the reuse-capable command (and can
+    /// ride a pooled session), v1/v3 use the plain one-shot connect command.
     fn command(&self) -> u8 {
         if self.version == 2 {
             COMMAND_CONNECT_V2
@@ -209,10 +217,41 @@ impl SnellOutboundConfig {
     }
 }
 
-/// Connect a Snell outbound to `target` and return a relay-ready stream. The
-/// salt and the AEAD-sealed request header are sent before the stream is handed
-/// back; the server's command response is consumed transparently on first read.
+/// Connect a Snell outbound to `target` and return a relay-ready stream. For v2
+/// this first tries to ride a pooled (reusable) session — writing only the new
+/// request header on the live shadowaead stream — and otherwise dials a fresh
+/// connection; v1/v3 always dial. The salt (fresh dials only) and the
+/// AEAD-sealed request header are sent before the stream is handed back; the
+/// server's command response is consumed transparently on first read.
 pub async fn connect(config: &SnellOutboundConfig, target: &TargetAddr) -> Result<BoxedStream> {
+    // v2 is the only reuse-capable version (CommandConnectV2 + half-close).
+    if config.version == 2 {
+        let key = SnellServerKey::from_config(config);
+        if let Some(pooled) = pool_take(&key) {
+            let mut stream = SnellStream::from_pooled(pooled, key);
+            let header = build_request_header(COMMAND_CONNECT_V2, target)?;
+            stream
+                .write_all(&header)
+                .await
+                .context("snell: send reuse request header")?;
+            return Ok(Box::new(stream));
+        }
+        let mut stream = handshake(config, Some(key)).await?;
+        let header = build_request_header(COMMAND_CONNECT_V2, target)?;
+        stream.write_all(&header).await.context("snell: send request header")?;
+        return Ok(Box::new(stream));
+    }
+
+    let mut stream = handshake(config, None).await?;
+    let header = build_request_header(config.command(), target)?;
+    stream.write_all(&header).await.context("snell: send request header")?;
+    Ok(Box::new(stream))
+}
+
+/// Dial a fresh Snell session: open the (optionally obfuscated) transport, send
+/// the client salt and derive the write cipher, returning a stream ready for its
+/// request header. `reuse_key` (set for v2) marks it poolable on a clean close.
+async fn handshake(config: &SnellOutboundConfig, reuse_key: Option<SnellServerKey>) -> Result<SnellStream> {
     let mut transport = connect_transport(config).await?;
 
     let cipher = config.cipher();
@@ -223,12 +262,92 @@ pub async fn connect(config: &SnellOutboundConfig, target: &TargetAddr) -> Resul
     let subkey = snell_kdf(&config.psk, &salt, cipher.key_size());
     let write_cipher = AeadCipher::new(cipher, &subkey)?;
 
-    let mut stream = SnellStream::new(transport, cipher, config.psk.clone(), write_cipher);
+    Ok(SnellStream::new(
+        transport,
+        cipher,
+        config.psk.clone(),
+        write_cipher,
+        reuse_key,
+    ))
+}
 
-    let header = build_request_header(config.command(), target)?;
-    stream.write_all(&header).await.context("snell: send request header")?;
+/// How long an idle reusable Snell session stays in the pool before it is
+/// evicted (and its TCP closed) on the next access. Matches mihomo's snell pool
+/// connection age (15s).
+const SESSION_IDLE_TTL: Duration = Duration::from_secs(15);
+/// Cap on idle reusable sessions kept per server endpoint, bounding fd/memory
+/// use (mihomo's snell pool size).
+const SESSION_POOL_MAX: usize = 10;
 
-    Ok(Box::new(stream))
+/// Identifies a Snell server endpoint for the reuse pool. A session is only
+/// reusable for an identical endpoint *and* crypto/transport config (version,
+/// psk and obfs all change the bytes on the wire), so all are part of the key.
+#[derive(Clone, PartialEq, Eq, Hash)]
+struct SnellServerKey {
+    server: String,
+    port: u16,
+    version: u8,
+    psk: Vec<u8>,
+    obfs: Option<SnellObfs>,
+}
+
+impl SnellServerKey {
+    fn from_config(config: &SnellOutboundConfig) -> Self {
+        Self {
+            server: config.server.clone(),
+            port: config.port,
+            version: config.version,
+            psk: config.psk.clone(),
+            obfs: config.obfs.clone(),
+        }
+    }
+}
+
+/// A live Snell session parked for sequential reuse: the established transport
+/// plus the *continuous* shadowaead state (both ciphers and their counter
+/// nonces keep advancing across logical streams). `read_cipher` is always set
+/// because a session is only parked after its first stream consumed the server
+/// salt.
+struct PooledSnell {
+    inner: BoxedStream,
+    cipher: SnellCipher,
+    psk: Vec<u8>,
+    write_cipher: AeadCipher,
+    write_nonce: [u8; 12],
+    read_cipher: AeadCipher,
+    read_nonce: [u8; 12],
+    idle_since: Instant,
+}
+
+/// Process-wide pool of idle reusable sessions, keyed by server endpoint, using
+/// the same lazily-initialised `Mutex<Option<HashMap>>` idiom as the AnyTLS
+/// session registry.
+static SESSION_POOL: StdMutex<Option<HashMap<SnellServerKey, Vec<PooledSnell>>>> = StdMutex::new(None);
+
+/// Take a still-fresh idle session for `key`, dropping any that have outlived
+/// [`SESSION_IDLE_TTL`]. `None` means a new connection must be dialled.
+fn pool_take(key: &SnellServerKey) -> Option<PooledSnell> {
+    let mut guard = SESSION_POOL.lock().expect("snell session pool");
+    let map = guard.as_mut()?;
+    let list = map.get_mut(key)?;
+    list.retain(|s| s.idle_since.elapsed() <= SESSION_IDLE_TTL);
+    let taken = list.pop();
+    if list.is_empty() {
+        map.remove(key);
+    }
+    taken
+}
+
+/// Park a cleanly half-closed session for later reuse, bounded by
+/// [`SESSION_POOL_MAX`]; over-capacity sessions are dropped (TCP closed).
+fn pool_put(key: SnellServerKey, session: PooledSnell) {
+    let mut guard = SESSION_POOL.lock().expect("snell session pool");
+    let map = guard.get_or_insert_with(HashMap::new);
+    let list = map.entry(key).or_default();
+    list.retain(|s| s.idle_since.elapsed() <= SESSION_IDLE_TTL);
+    if list.len() < SESSION_POOL_MAX {
+        list.push(session);
+    }
 }
 
 /// Dial `config.server:port` and wrap the socket in the configured simple-obfs
@@ -560,11 +679,13 @@ enum ReadState {
 /// cipher, consume the one-byte command response, then decrypt length-prefixed
 /// chunks. The client salt and sealed request header are sent at connect time.
 struct SnellStream {
-    inner: BoxedStream,
+    /// `Option` only so [`Drop`] can move it out when parking the session for
+    /// reuse; it is always `Some` during normal operation.
+    inner: Option<BoxedStream>,
     cipher: SnellCipher,
     psk: Vec<u8>,
     // Write side.
-    write_cipher: AeadCipher,
+    write_cipher: Option<AeadCipher>,
     write_nonce: [u8; 12],
     write_buf: Vec<u8>,
     write_pos: usize,
@@ -577,15 +698,28 @@ struct SnellStream {
     reply_done: bool,
     plain: Vec<u8>,
     plain_pos: usize,
+    /// Pool key if this stream may be parked for reuse (v2); `None` = one-shot.
+    reuse_key: Option<SnellServerKey>,
+    /// The server sent its zero-length chunk (a clean logical EOF, distinct from
+    /// a transport close), so the session can be reused.
+    read_saw_zero: bool,
+    /// We sent our zero-length chunk (half-close) on shutdown.
+    write_closed: bool,
 }
 
 impl SnellStream {
-    fn new(inner: BoxedStream, cipher: SnellCipher, psk: Vec<u8>, write_cipher: AeadCipher) -> Self {
+    fn new(
+        inner: BoxedStream,
+        cipher: SnellCipher,
+        psk: Vec<u8>,
+        write_cipher: AeadCipher,
+        reuse_key: Option<SnellServerKey>,
+    ) -> Self {
         Self {
-            inner,
+            inner: Some(inner),
             cipher,
             psk,
-            write_cipher,
+            write_cipher: Some(write_cipher),
             write_nonce: [0u8; 12],
             write_buf: Vec::new(),
             write_pos: 0,
@@ -596,13 +730,43 @@ impl SnellStream {
             reply_done: false,
             plain: Vec::new(),
             plain_pos: 0,
+            reuse_key,
+            read_saw_zero: false,
+            write_closed: false,
+        }
+    }
+
+    /// Rebuild a stream on a pooled (reused) session: the salt was consumed on
+    /// the first stream so reads resume at a chunk length boundary with the
+    /// session's continuous ciphers/nonces, and the server sends a fresh
+    /// command-response byte for this request (`reply_done` reset).
+    fn from_pooled(pooled: PooledSnell, key: SnellServerKey) -> Self {
+        Self {
+            inner: Some(pooled.inner),
+            cipher: pooled.cipher,
+            psk: pooled.psk,
+            write_cipher: Some(pooled.write_cipher),
+            write_nonce: pooled.write_nonce,
+            write_buf: Vec::new(),
+            write_pos: 0,
+            read_cipher: Some(pooled.read_cipher),
+            read_nonce: pooled.read_nonce,
+            read_state: ReadState::Len,
+            read_raw: Vec::new(),
+            reply_done: false,
+            plain: Vec::new(),
+            plain_pos: 0,
+            reuse_key: Some(key),
+            read_saw_zero: false,
+            write_closed: false,
         }
     }
 
     /// Flush any pending sealed bytes to the inner stream.
     fn poll_drain(&mut self, cx: &mut TaskContext<'_>) -> Poll<io::Result<()>> {
+        let inner = self.inner.as_mut().expect("snell stream inner");
         while self.write_pos < self.write_buf.len() {
-            let n = ready!(Pin::new(&mut self.inner).poll_write(cx, &self.write_buf[self.write_pos..]))?;
+            let n = ready!(Pin::new(&mut *inner).poll_write(cx, &self.write_buf[self.write_pos..]))?;
             if n == 0 {
                 return Poll::Ready(Err(io::Error::new(io::ErrorKind::WriteZero, "snell: write zero")));
             }
@@ -618,13 +782,13 @@ impl SnellStream {
     fn queue_chunk(&mut self, plaintext: &[u8]) -> io::Result<()> {
         let len = u16::try_from(plaintext.len())
             .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "snell: chunk too large"))?;
-        let sealed_len = self
-            .write_cipher
+        let cipher = self.write_cipher.as_ref().expect("snell write cipher");
+        let sealed_len = cipher
             .seal(&self.write_nonce, &len.to_be_bytes())
             .map_err(|e| io::Error::other(e.to_string()))?;
         increment_nonce(&mut self.write_nonce);
-        let sealed_payload = self
-            .write_cipher
+        let cipher = self.write_cipher.as_ref().expect("snell write cipher");
+        let sealed_payload = cipher
             .seal(&self.write_nonce, plaintext)
             .map_err(|e| io::Error::other(e.to_string()))?;
         increment_nonce(&mut self.write_nonce);
@@ -633,6 +797,22 @@ impl SnellStream {
         self.write_pos = 0;
         self.write_buf.extend_from_slice(&sealed_len);
         self.write_buf.extend_from_slice(&sealed_payload);
+        Ok(())
+    }
+
+    /// Queue Snell's half-close: a single zero-length AEAD chunk — only the
+    /// sealed length field `0x0000` (one nonce step), no payload block — matching
+    /// mihomo's `writeZeroChunk` / shadowaead empty write. The peer decrypts the
+    /// length, sees `0`, and treats it as a logical EOF (its `ErrZeroChunk`).
+    fn queue_zero_chunk(&mut self) -> io::Result<()> {
+        let cipher = self.write_cipher.as_ref().expect("snell write cipher");
+        let sealed_len = cipher
+            .seal(&self.write_nonce, &[0u8, 0u8])
+            .map_err(|e| io::Error::other(e.to_string()))?;
+        increment_nonce(&mut self.write_nonce);
+        self.write_buf.clear();
+        self.write_pos = 0;
+        self.write_buf.extend_from_slice(&sealed_len);
         Ok(())
     }
 
@@ -703,7 +883,8 @@ impl AsyncRead for SnellStream {
             if this.read_raw.len() < need {
                 let mut scratch = [0u8; 4096];
                 let mut read_buf = ReadBuf::new(&mut scratch);
-                ready!(Pin::new(&mut this.inner).poll_read(cx, &mut read_buf))?;
+                let inner = this.inner.as_mut().expect("snell stream inner");
+                ready!(Pin::new(inner).poll_read(cx, &mut read_buf))?;
                 let filled = read_buf.filled();
                 if filled.is_empty() {
                     // Snell (like Shadowsocks) signals end-of-stream by closing
@@ -731,7 +912,14 @@ impl AsyncRead for SnellStream {
                     let plain = cipher.open(&this.read_nonce, &sealed).map_err(decrypt_err)?;
                     increment_nonce(&mut this.read_nonce);
                     let clen = u16::from_be_bytes([plain[0], plain[1]]) as usize;
-                    if clen == 0 || clen > MAX_CHUNK {
+                    if clen == 0 {
+                        // Zero-length chunk = Snell half-close: a clean logical
+                        // EOF on a (reusable) stream, not a transport close.
+                        this.read_saw_zero = true;
+                        this.read_state = ReadState::Eof;
+                        return Poll::Ready(Ok(()));
+                    }
+                    if clen > MAX_CHUNK {
                         return Poll::Ready(Err(io::Error::new(
                             io::ErrorKind::InvalidData,
                             "snell: invalid chunk length",
@@ -777,13 +965,61 @@ impl AsyncWrite for SnellStream {
     fn poll_flush(self: Pin<&mut Self>, cx: &mut TaskContext<'_>) -> Poll<io::Result<()>> {
         let this = self.get_mut();
         ready!(this.poll_drain(cx))?;
-        Pin::new(&mut this.inner).poll_flush(cx)
+        Pin::new(this.inner.as_mut().expect("snell stream inner")).poll_flush(cx)
     }
 
     fn poll_shutdown(self: Pin<&mut Self>, cx: &mut TaskContext<'_>) -> Poll<io::Result<()>> {
         let this = self.get_mut();
+        // On a reuse-capable stream, shutdown means *half-close*: send our
+        // zero-length chunk so the peer ends this logical stream, then flush but
+        // keep the TCP open — the session returns to the pool on drop.
+        if this.reuse_key.is_some() {
+            ready!(this.poll_drain(cx))?;
+            if !this.write_closed {
+                this.queue_zero_chunk()?;
+                this.write_closed = true;
+            }
+            ready!(this.poll_drain(cx))?;
+            return Pin::new(this.inner.as_mut().expect("snell stream inner")).poll_flush(cx);
+        }
         ready!(this.poll_drain(cx))?;
-        Pin::new(&mut this.inner).poll_shutdown(cx)
+        Pin::new(this.inner.as_mut().expect("snell stream inner")).poll_shutdown(cx)
+    }
+}
+
+impl Drop for SnellStream {
+    fn drop(&mut self) {
+        let Some(key) = self.reuse_key.take() else {
+            return;
+        };
+        // Only park a session that half-closed cleanly in both directions and
+        // carries no buffered/leftover bytes, so the next stream starts on a
+        // clean chunk boundary with continuous nonces; otherwise the TCP is
+        // closed by dropping the fields.
+        if !(self.read_saw_zero && self.write_closed) {
+            return;
+        }
+        if self.write_pos < self.write_buf.len() || !self.read_raw.is_empty() || self.plain_pos < self.plain.len() {
+            return;
+        }
+        let (Some(inner), Some(write_cipher), Some(read_cipher)) =
+            (self.inner.take(), self.write_cipher.take(), self.read_cipher.take())
+        else {
+            return;
+        };
+        pool_put(
+            key,
+            PooledSnell {
+                inner,
+                cipher: self.cipher,
+                psk: std::mem::take(&mut self.psk),
+                write_cipher,
+                write_nonce: self.write_nonce,
+                read_cipher,
+                read_nonce: self.read_nonce,
+                idle_since: Instant::now(),
+            },
+        );
     }
 }
 
@@ -940,5 +1176,222 @@ mod tests {
         }))
         .unwrap_err();
         assert!(err.to_string().contains("unknown obfs mode"), "got: {err}");
+    }
+
+    // ---- v2 session reuse (CommandConnectV2 + half-close) -----------------
+
+    use std::net::{Ipv4Addr, SocketAddr};
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    use tokio::net::{TcpListener, TcpStream};
+
+    const REUSE_PSK: &[u8] = b"snell-reuse-psk";
+
+    /// One framing event read off the fake server's socket.
+    enum SrvChunk {
+        Data(Vec<u8>),
+        /// A zero-length chunk: the client's half-close.
+        Zero,
+        /// The transport closed.
+        Eof,
+    }
+
+    async fn srv_read_chunk(stream: &mut TcpStream, cipher: &AeadCipher, nonce: &mut [u8; 12]) -> SrvChunk {
+        let mut sealed_len = [0u8; 2 + TAG_LEN];
+        if stream.read_exact(&mut sealed_len).await.is_err() {
+            return SrvChunk::Eof;
+        }
+        let len_plain = cipher.open(nonce, &sealed_len).expect("server: decrypt chunk length");
+        increment_nonce(nonce);
+        let clen = u16::from_be_bytes([len_plain[0], len_plain[1]]) as usize;
+        if clen == 0 {
+            return SrvChunk::Zero;
+        }
+        let mut sealed = vec![0u8; clen + TAG_LEN];
+        stream.read_exact(&mut sealed).await.expect("server: read chunk body");
+        let plain = cipher.open(nonce, &sealed).expect("server: decrypt chunk body");
+        increment_nonce(nonce);
+        SrvChunk::Data(plain)
+    }
+
+    async fn srv_write_chunk(stream: &mut TcpStream, cipher: &AeadCipher, nonce: &mut [u8; 12], plaintext: &[u8]) {
+        let len = (plaintext.len() as u16).to_be_bytes();
+        let sealed_len = cipher.seal(nonce, &len).unwrap();
+        increment_nonce(nonce);
+        let sealed = cipher.seal(nonce, plaintext).unwrap();
+        increment_nonce(nonce);
+        stream.write_all(&sealed_len).await.unwrap();
+        stream.write_all(&sealed).await.unwrap();
+        stream.flush().await.unwrap();
+    }
+
+    /// The server's half-close: a single sealed zero-length field, no payload.
+    async fn srv_write_zero(stream: &mut TcpStream, cipher: &AeadCipher, nonce: &mut [u8; 12]) {
+        let sealed_len = cipher.seal(nonce, &[0u8, 0u8]).unwrap();
+        increment_nonce(nonce);
+        stream.write_all(&sealed_len).await.unwrap();
+        stream.flush().await.unwrap();
+    }
+
+    /// A reuse-capable fake Snell v2 server: it handshakes once, then loops
+    /// serving sequential logical streams on the *same* connection, echoing each
+    /// until the client's zero-length half-close, replying with its own zero
+    /// chunk so the client sees a clean logical EOF. It records each request's
+    /// command byte so tests can assert CommandConnectV2 was sent.
+    async fn serve_reuse(mut stream: TcpStream, commands: Arc<std::sync::Mutex<Vec<u8>>>) {
+        let cipher = SnellCipher::Aes128Gcm; // v2
+        let ks = cipher.key_size();
+
+        let mut salt = [0u8; SALT_LEN];
+        if stream.read_exact(&mut salt).await.is_err() {
+            return;
+        }
+        let read_cipher = AeadCipher::new(cipher, &snell_kdf(REUSE_PSK, &salt, ks)).unwrap();
+        let mut read_nonce = [0u8; 12];
+
+        let mut salt_w = [0u8; SALT_LEN];
+        for (i, b) in salt_w.iter_mut().enumerate() {
+            *b = (i as u8).wrapping_mul(11).wrapping_add(3);
+        }
+        stream.write_all(&salt_w).await.unwrap();
+        let write_cipher = AeadCipher::new(cipher, &snell_kdf(REUSE_PSK, &salt_w, ks)).unwrap();
+        let mut write_nonce = [0u8; 12];
+
+        loop {
+            // Each logical stream starts with a request header chunk.
+            let header = match srv_read_chunk(&mut stream, &read_cipher, &mut read_nonce).await {
+                SrvChunk::Data(h) => h,
+                SrvChunk::Zero | SrvChunk::Eof => return,
+            };
+            commands.lock().unwrap().push(header[1]);
+            srv_write_chunk(&mut stream, &write_cipher, &mut write_nonce, &[RESP_TUNNEL]).await;
+
+            // Echo until the client half-closes this logical stream.
+            loop {
+                match srv_read_chunk(&mut stream, &read_cipher, &mut read_nonce).await {
+                    SrvChunk::Data(d) => srv_write_chunk(&mut stream, &write_cipher, &mut write_nonce, &d).await,
+                    SrvChunk::Zero => {
+                        srv_write_zero(&mut stream, &write_cipher, &mut write_nonce).await;
+                        break;
+                    }
+                    SrvChunk::Eof => return,
+                }
+            }
+        }
+    }
+
+    async fn spawn_reuse_server() -> (SocketAddr, Arc<AtomicUsize>, Arc<std::sync::Mutex<Vec<u8>>>) {
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let conns = Arc::new(AtomicUsize::new(0));
+        let commands = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let conns_task = conns.clone();
+        let commands_task = commands.clone();
+        tokio::spawn(async move {
+            while let Ok((stream, _)) = listener.accept().await {
+                conns_task.fetch_add(1, Ordering::SeqCst);
+                tokio::spawn(serve_reuse(stream, commands_task.clone()));
+            }
+        });
+        (addr, conns, commands)
+    }
+
+    fn reuse_config(addr: SocketAddr) -> SnellOutboundConfig {
+        SnellOutboundConfig {
+            server: addr.ip().to_string(),
+            port: addr.port(),
+            psk: REUSE_PSK.to_vec(),
+            version: 2,
+            obfs: None,
+        }
+    }
+
+    fn pool_len(key: &SnellServerKey) -> usize {
+        SESSION_POOL
+            .lock()
+            .expect("snell session pool")
+            .as_ref()
+            .and_then(|m| m.get(key))
+            .map_or(0, |v| v.len())
+    }
+
+    /// Relay-style round trip then a clean half-close (our zero chunk, then read
+    /// the server's zero chunk to EOF), leaving the session reusable once
+    /// dropped — the shape `copy_bidirectional` produces in the real relay.
+    async fn round_trip_and_close(stream: &mut BoxedStream, payload: &[u8]) {
+        stream.write_all(payload).await.unwrap();
+        stream.flush().await.unwrap();
+        let mut buf = vec![0u8; payload.len()];
+        stream.read_exact(&mut buf).await.unwrap();
+        assert_eq!(buf, payload);
+        stream.shutdown().await.unwrap();
+        let mut tail = Vec::new();
+        stream.read_to_end(&mut tail).await.unwrap();
+        assert!(tail.is_empty(), "no application bytes after the echo");
+    }
+
+    #[tokio::test]
+    async fn v2_reuses_pooled_session_sequentially() {
+        let (addr, conns, commands) = spawn_reuse_server().await;
+        let config = reuse_config(addr);
+        let key = SnellServerKey::from_config(&config);
+        let target = TargetAddr::Domain("example.com".to_string(), 443);
+
+        // First stream over a fresh connection; a clean half-close parks it.
+        {
+            let mut s = connect(&config, &target).await.unwrap();
+            round_trip_and_close(&mut s, b"first").await;
+        }
+        assert_eq!(pool_len(&key), 1, "clean half-close parks the session for reuse");
+
+        // Second and third streams must ride the same connection.
+        {
+            let mut s = connect(&config, &target).await.unwrap();
+            round_trip_and_close(&mut s, b"second").await;
+        }
+        {
+            let mut s = connect(&config, &target).await.unwrap();
+            round_trip_and_close(&mut s, b"third").await;
+        }
+
+        assert_eq!(pool_len(&key), 1, "the session stays parked between reuses");
+        assert_eq!(
+            conns.load(Ordering::SeqCst),
+            1,
+            "all three streams shared one TCP connection"
+        );
+        assert_eq!(
+            *commands.lock().unwrap(),
+            vec![COMMAND_CONNECT_V2, COMMAND_CONNECT_V2, COMMAND_CONNECT_V2],
+            "every reuse request used CommandConnectV2",
+        );
+    }
+
+    #[tokio::test]
+    async fn pool_take_evicts_idle_expired_sessions() {
+        let key = SnellServerKey {
+            server: "ttl-test.invalid".to_string(),
+            port: 1,
+            version: 2,
+            psk: b"p".to_vec(),
+            obfs: None,
+        };
+        let (dummy, _peer) = tokio::io::duplex(64);
+        let expired = PooledSnell {
+            inner: Box::new(dummy),
+            cipher: SnellCipher::Aes128Gcm,
+            psk: b"p".to_vec(),
+            write_cipher: AeadCipher::new(SnellCipher::Aes128Gcm, &[0u8; 16]).unwrap(),
+            write_nonce: [0u8; 12],
+            read_cipher: AeadCipher::new(SnellCipher::Aes128Gcm, &[0u8; 16]).unwrap(),
+            read_nonce: [0u8; 12],
+            idle_since: Instant::now() - SESSION_IDLE_TTL - Duration::from_secs(1),
+        };
+        pool_put(key.clone(), expired);
+        // The parked session has outlived the idle TTL: it is evicted on access
+        // and no session is handed back for reuse.
+        assert!(pool_take(&key).is_none(), "an idle-expired session is not reused");
+        assert_eq!(pool_len(&key), 0, "the expired entry is evicted");
     }
 }
