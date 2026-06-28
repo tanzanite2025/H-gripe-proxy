@@ -58,6 +58,7 @@ impl ProxyEntry {
             | ProxyType::Vmess
             | ProxyType::Vless
             | ProxyType::Ssh
+            | ProxyType::Hysteria
             | ProxyType::ShadowsocksR => ProtocolSupport::Implemented,
             // Parsed and type-checked, but no outbound data plane yet.
             _ => ProtocolSupport::Unsupported,
@@ -294,6 +295,16 @@ pub struct ProxyOptions {
     pub hop_interval: Option<u32>,
     pub up: Option<String>,
     pub down: Option<String>,
+    /// Hysteria v1 upstream/downstream rate as a plain Mbps number
+    /// (`up-speed`/`down-speed`), an alternative to the `up`/`down` strings.
+    #[serde(rename = "up-speed")]
+    pub up_speed: Option<u64>,
+    #[serde(rename = "down-speed")]
+    pub down_speed: Option<u64>,
+    /// Hysteria v1 authentication: literal `auth-str` or base64 `auth`.
+    #[serde(rename = "auth-str")]
+    pub auth_str: Option<String>,
+    pub auth: Option<String>,
     pub obfs: Option<String>,
     #[serde(rename = "obfs-password")]
     pub obfs_password: Option<String>,

@@ -17,8 +17,7 @@ use anyhow::{Context, Result, anyhow, bail};
 use quinn::crypto::rustls::QuicClientConfig;
 use quinn::{ClientConfig, Connection, Endpoint, EndpointConfig, TransportConfig, ZeroRttAccepted};
 
-use crate::protocols::salamander::Salamander;
-use crate::transport::quic_obfs::{ObfsHopSocket, PortHopConfig};
+use crate::transport::quic_obfs::{ObfsHopSocket, PacketObfs, PortHopConfig};
 use crate::transport::tls;
 
 /// QUIC congestion controller selection (`congestion-controller` in clash
@@ -58,9 +57,9 @@ pub struct QuicClientParams {
     pub skip_cert_verify: bool,
     /// Send-side congestion controller.
     pub congestion: Congestion,
-    /// Salamander packet obfuscation applied to every QUIC datagram, or `None`
-    /// for a plain QUIC socket.
-    pub obfs: Option<Salamander>,
+    /// Packet obfuscation applied to every QUIC datagram (Salamander for
+    /// Hysteria2, XPlus for Hysteria v1), or `None` for a plain QUIC socket.
+    pub obfs: Option<PacketObfs>,
     /// Port hopping: spread datagrams across a range of server ports, or `None`
     /// to always dial the configured port.
     pub port_hop: Option<PortHopConfig>,
