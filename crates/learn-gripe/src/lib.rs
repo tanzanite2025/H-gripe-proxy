@@ -35,6 +35,7 @@ pub use dns::{
 pub use inbound::{GripeHandle, GripeKernel};
 pub use protocols::anytls::AnyTlsOutboundConfig;
 pub use protocols::http::HttpOutboundConfig;
+pub use protocols::hysteria::HysteriaOutboundConfig;
 pub use protocols::hysteria2::Hysteria2OutboundConfig;
 pub use protocols::salamander::Salamander;
 pub use protocols::shadowsocks::{ShadowsocksCipher, ShadowsocksOutboundConfig};
@@ -46,6 +47,7 @@ pub use protocols::tuic::{TuicOutboundConfig, UdpRelayMode};
 pub use protocols::vless::VlessOutboundConfig;
 pub use protocols::vmess::{VmessCipher, VmessOutboundConfig};
 pub use protocols::wireguard::{self, WireGuardOutboundConfig};
+pub use protocols::xplus::XPlus;
 pub use routing::delay::measure_delay;
 pub use routing::{
     DIRECT, GeoLookup, IpCidr, LogicalOp, PortRange, ProcessInfo, ProcessLookup, REJECT, Router, Rule, RuleMatcher,

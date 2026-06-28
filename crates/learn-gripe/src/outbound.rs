@@ -4,6 +4,7 @@ use crate::conntrack::ConnNetwork;
 use crate::inbound::socks5;
 use crate::protocols::anytls::{self, AnyTlsOutboundConfig};
 use crate::protocols::http;
+use crate::protocols::hysteria;
 use crate::protocols::hysteria2::{self, Hysteria2OutboundConfig};
 use crate::protocols::shadowsocks::{self, ShadowsocksOutboundConfig};
 use crate::protocols::snell::{self, SnellOutboundConfig};
@@ -61,6 +62,7 @@ pub fn connect<'a>(
             OutboundMode::Vmess(config) => vmess::connect(config, target).await,
             OutboundMode::Shadowsocks(config) => shadowsocks::connect(config, target).await,
             OutboundMode::Tuic(config) => tuic::connect(config, target).await,
+            OutboundMode::Hysteria(config) => hysteria::connect(config, target).await,
             OutboundMode::Hysteria2(config) => hysteria2::connect(config, target).await,
             OutboundMode::AnyTls(config) => anytls::connect(config, target).await,
             OutboundMode::Snell(config) => snell::connect(config, target).await,
@@ -152,9 +154,13 @@ pub fn resolve_udp_egress(mode: &OutboundMode, target: &TargetAddr, source: Opti
         }
         // Reject blocks the datagram; an upstream SOCKS5/HTTP proxy has no UDP
         // relay path here, so its associations are refused rather than leaked.
-        OutboundMode::Reject | OutboundMode::Socks5Upstream { .. } | OutboundMode::Http(_) | OutboundMode::Ssh(_) => {
-            None
-        }
+        // Hysteria v1 here carries TCP only (no UDP relay yet), so its
+        // associations are refused rather than leaked.
+        OutboundMode::Reject
+        | OutboundMode::Socks5Upstream { .. }
+        | OutboundMode::Http(_)
+        | OutboundMode::Ssh(_)
+        | OutboundMode::Hysteria(_) => None,
     }
 }
 

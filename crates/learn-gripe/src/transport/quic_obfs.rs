@@ -4,9 +4,11 @@
 //! implemented as a [`quinn::AsyncUdpSocket`] wrapper around the runtime's real
 //! socket. The wrapper transforms every datagram on the way out and in:
 //!
-//! - **Salamander obfuscation** (`obfs: salamander`): each outgoing datagram is
-//!   XOR-masked with a fresh salt ([`crate::protocols::salamander`]) and each
-//!   incoming one is unmasked, hiding the QUIC header from a passive censor.
+//! - **Packet obfuscation** ([`PacketObfs`]): each outgoing datagram is
+//!   XOR-masked with a fresh salt and each incoming one is unmasked, hiding the
+//!   QUIC header from a passive censor. Hysteria2 uses Salamander
+//!   ([`crate::protocols::salamander`], `obfs: salamander`) and Hysteria v1 uses
+//!   XPlus ([`crate::protocols::xplus`], `obfs: <key>`); both share this socket.
 //!   Because every datagram carries an independent salt (and therefore a
 //!   different post-obfuscation length), GSO/GRO batching is disabled
 //!   ([`max_transmit_segments`](AsyncUdpSocket::max_transmit_segments) = 1).
@@ -36,6 +38,36 @@ use quinn::udp::{RecvMeta, Transmit};
 use quinn::{AsyncUdpSocket, UdpPoller};
 
 use crate::protocols::salamander::Salamander;
+use crate::protocols::xplus::XPlus;
+
+/// Packet obfuscation applied below QUIC, at the UDP datagram boundary. Each
+/// variant masks a datagram into `salt || XOR(payload)` and recovers it on the
+/// way back; the two variants differ only in salt length and key-derivation
+/// hash. Selected per outbound: Hysteria2 -> Salamander, Hysteria v1 -> XPlus.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum PacketObfs {
+    Salamander(Salamander),
+    XPlus(XPlus),
+}
+
+impl PacketObfs {
+    /// Mask `payload` into a fresh `salt || XOR(payload)` datagram.
+    fn obfuscate(&self, payload: &[u8]) -> Vec<u8> {
+        match self {
+            PacketObfs::Salamander(s) => s.obfuscate(payload),
+            PacketObfs::XPlus(x) => x.obfuscate(payload),
+        }
+    }
+
+    /// Recover a `salt || ciphertext` datagram in place, returning the payload
+    /// length, or `None` if it is too short to be valid.
+    fn deobfuscate_in_place(&self, buf: &mut [u8]) -> Option<usize> {
+        match self {
+            PacketObfs::Salamander(s) => s.deobfuscate_in_place(buf),
+            PacketObfs::XPlus(x) => x.deobfuscate_in_place(buf),
+        }
+    }
+}
 
 /// Default port-hopping rotation interval when `hop-interval` is unset
 /// (matches the reference Hysteria2 client default of 30s).
@@ -162,7 +194,7 @@ impl PortHopper {
 /// hopping around an inner runtime socket.
 pub struct ObfsHopSocket {
     inner: Arc<dyn AsyncUdpSocket>,
-    obfs: Option<Salamander>,
+    obfs: Option<PacketObfs>,
     hopper: Option<PortHopper>,
     /// The address quinn dials and associates with the connection. Outgoing
     /// datagrams keep this IP (only the port hops); incoming datagrams are
@@ -177,7 +209,7 @@ impl ObfsHopSocket {
     pub fn new(
         inner: Arc<dyn AsyncUdpSocket>,
         canonical: SocketAddr,
-        obfs: Option<Salamander>,
+        obfs: Option<PacketObfs>,
         port_hop: Option<PortHopConfig>,
     ) -> Self {
         Self {

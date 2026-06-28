@@ -63,7 +63,7 @@ use crate::outbound::BoxedStream;
 use crate::protocols::quic_udp::{self, Reassembler};
 use crate::protocols::salamander::Salamander;
 use crate::transport::quic::{self, Congestion, QuicClientParams};
-use crate::transport::quic_obfs::PortHopConfig;
+use crate::transport::quic_obfs::{PacketObfs, PortHopConfig};
 
 /// `obfs` value selecting Salamander packet obfuscation (the only mode mihomo /
 /// Hysteria2 define).
@@ -183,7 +183,7 @@ impl Hysteria2OutboundConfig {
             alpn: self.alpn.clone(),
             skip_cert_verify: self.skip_cert_verify,
             congestion: self.congestion,
-            obfs: self.obfs.clone(),
+            obfs: self.obfs.clone().map(PacketObfs::Salamander),
             port_hop: self.port_hop.clone(),
             zero_rtt: self.reduce_rtt,
         }

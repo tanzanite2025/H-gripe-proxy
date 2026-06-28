@@ -7,6 +7,7 @@
 
 pub mod anytls;
 pub mod http;
+pub mod hysteria;
 pub mod hysteria2;
 pub mod quic_udp;
 pub mod salamander;
@@ -21,3 +22,4 @@ pub mod vision;
 pub mod vless;
 pub mod vmess;
 pub mod wireguard;
+pub mod xplus;
