@@ -8,6 +8,7 @@ use crate::protocols::gost_relay::GostRelayOutboundConfig;
 use crate::protocols::http::HttpOutboundConfig;
 use crate::protocols::hysteria::HysteriaOutboundConfig;
 use crate::protocols::hysteria2::Hysteria2OutboundConfig;
+use crate::protocols::mieru::MieruOutboundConfig;
 use crate::protocols::shadowsocks::ShadowsocksOutboundConfig;
 use crate::protocols::snell::SnellOutboundConfig;
 use crate::protocols::ssh::SshOutboundConfig;
@@ -64,6 +65,8 @@ pub enum OutboundMode {
     Ssh(Box<SshOutboundConfig>),
     /// Forward through a GOST relay (relay protocol v1) outbound.
     GostRelay(Box<GostRelayOutboundConfig>),
+    /// Forward through a mieru outbound (TCP underlay, single logical stream).
+    Mieru(Box<MieruOutboundConfig>),
     /// Forward through a ShadowsocksR (SSR) outbound.
     Ssr(Box<SsrOutboundConfig>),
     /// Forward through a WireGuard outbound (L3 tunnel + userspace netstack).
@@ -82,9 +85,9 @@ impl OutboundMode {
     /// own `from_proxy` parser, which rejects sub-features that are not
     /// implemented yet, so an entry either maps to an outbound that can
     /// actually carry its traffic or returns an error the caller can fall back
-    /// on. Protocols without a data plane yet (MASQUE, MIERU, …) and the
+    /// on. Protocols without a data plane yet (MASQUE, …) and the
     /// `select`/`url-test`/… proxy *groups* are reported as errors rather than
-    /// silently mis-routed. (TUIC, Hysteria v1, and Hysteria2 have a TCP data plane.)
+    /// silently mis-routed. (TUIC, Hysteria v1/2, GOST relay, and mieru have a TCP data plane.)
     pub fn from_proxy(entry: &ProxyEntry) -> Result<Self> {
         match entry.kind {
             ProxyType::Direct => Ok(OutboundMode::Direct),
@@ -112,6 +115,7 @@ impl OutboundMode {
             ProxyType::GostRelay => Ok(OutboundMode::GostRelay(Box::new(GostRelayOutboundConfig::from_proxy(
                 entry,
             )?))),
+            ProxyType::Mieru => Ok(OutboundMode::Mieru(Box::new(MieruOutboundConfig::from_proxy(entry)?))),
             ProxyType::ShadowsocksR => Ok(OutboundMode::Ssr(Box::new(SsrOutboundConfig::from_proxy(entry)?))),
             ProxyType::WireGuard => Ok(OutboundMode::WireGuard(Box::new(WireGuardOutboundConfig::from_proxy(
                 entry,
@@ -145,6 +149,7 @@ impl OutboundMode {
             OutboundMode::Snell(c) => vec![(c.server.clone(), c.port)],
             OutboundMode::Ssh(c) => vec![(c.server.clone(), c.port)],
             OutboundMode::GostRelay(c) => vec![(c.server.clone(), c.port)],
+            OutboundMode::Mieru(c) => vec![(c.server.clone(), c.port)],
             OutboundMode::Ssr(c) => vec![(c.server.clone(), c.port)],
             OutboundMode::WireGuard(c) => vec![(c.server.clone(), c.port)],
             OutboundMode::Routed(router) => router
@@ -173,6 +178,7 @@ impl OutboundMode {
             OutboundMode::Snell(_) => "snell",
             OutboundMode::Ssh(_) => "ssh",
             OutboundMode::GostRelay(_) => "gost-relay",
+            OutboundMode::Mieru(_) => "mieru",
             OutboundMode::Ssr(_) => "ssr",
             OutboundMode::WireGuard(_) => "wireguard",
             OutboundMode::Routed(_) => "routed",
@@ -201,6 +207,7 @@ impl OutboundMode {
                 | OutboundMode::Snell(_)
                 | OutboundMode::Ssh(_)
                 | OutboundMode::GostRelay(_)
+                | OutboundMode::Mieru(_)
                 | OutboundMode::Ssr(_)
                 | OutboundMode::WireGuard(_)
         )

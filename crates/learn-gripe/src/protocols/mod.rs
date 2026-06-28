@@ -10,6 +10,7 @@ pub mod gost_relay;
 pub mod http;
 pub mod hysteria;
 pub mod hysteria2;
+pub mod mieru;
 pub mod quic_udp;
 pub mod salamander;
 pub mod shadowsocks;

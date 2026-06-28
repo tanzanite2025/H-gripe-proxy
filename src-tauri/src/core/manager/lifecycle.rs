@@ -536,6 +536,7 @@ fn outbound_label(outbound: &OutboundMode) -> &'static str {
         OutboundMode::Ssh(_) => "ssh",
         OutboundMode::Hysteria(_) => "hysteria",
         OutboundMode::GostRelay(_) => "gost-relay",
+        OutboundMode::Mieru(_) => "mieru",
         OutboundMode::Vless(_) => "vless",
         OutboundMode::Trojan(_) => "trojan",
         OutboundMode::Vmess(_) => "vmess",

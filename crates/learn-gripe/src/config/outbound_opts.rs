@@ -60,6 +60,7 @@ impl ProxyEntry {
             | ProxyType::Ssh
             | ProxyType::Hysteria
             | ProxyType::GostRelay
+            | ProxyType::Mieru
             | ProxyType::ShadowsocksR => ProtocolSupport::Implemented,
             // Parsed and type-checked, but no outbound data plane yet.
             _ => ProtocolSupport::Unsupported,
@@ -283,6 +284,19 @@ pub struct ProxyOptions {
     pub forward: Option<bool>,
     /// Multiplex relay streams over one connection with smux (`mux`).
     pub mux: Option<bool>,
+
+    // mieru outbound (`type: mieru`).
+    /// Underlay carrying the mieru reliable-transport session (`transport`):
+    /// `TCP` or `UDP`. The kernel implements the TCP underlay only.
+    pub transport: Option<String>,
+    /// mieru stream multiplexing level (`multiplexing`): one of
+    /// `MULTIPLEXING_OFF` / `_LOW` / `_MIDDLE` / `_HIGH`. Only `MULTIPLEXING_OFF`
+    /// (a single logical stream) is implemented.
+    pub multiplexing: Option<String>,
+    /// Port-hopping range (`port-range`, e.g. `2000-3000`) for mieru / QUIC
+    /// families. Not used by the mieru TCP underlay (a single fixed port).
+    #[serde(rename = "port-range")]
+    pub port_range: Option<String>,
 
     // Shadowsocks plugin transport.
     pub plugin: Option<String>,

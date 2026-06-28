@@ -128,6 +128,8 @@ hmac = { version = "0.12.1", default-features = false }
 aes = { version = "0.8.4" }
 # DNS message build/parse for the fake upstream DNS server in tests/dns.rs.
 hickory-proto = { version = "0.24", default-features = false }
+# OS RNG for the fake mieru server's nonce generation in tests/mieru_outbound.rs.
+getrandom = { version = "0.3.4" }
 
 [lints]
 workspace = true
