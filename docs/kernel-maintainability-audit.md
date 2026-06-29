@@ -205,6 +205,6 @@ src/
 ### 5.5 建议执行顺序（每步独立 PR、独立过 CI）
 
 1. ✅ **止血**：修 `support()` 漂移 + 穷尽测试（PR #490，已合并）。
-2. **TCP 分发 trait 化**：引入 `Outbound` trait + 注册表，收敛 `connect`/`label`/`endpoint`/`capture`/`from_proxy`/`support`；UDP 暂留旧路径。
-3. **UDP 分发收敛**（唯一有真实行为风险的一步）：把 `UdpEgress` 三类语义并入 trait，逐协议核对后合并。
+2. ✅ **TCP 分发 trait 化**（PR #492，已合并）：引入 `TcpOutbound` trait（`type_label`/`dial_endpoint`/`supports_global_capture`/`connect_tcp`），各协议用 `impl_tcp_outbound!` 宏实现一次；`OutboundMode::as_tcp_outbound` 成为唯一穷尽映射，`connect`/`type_label`/`direct_dial_endpoints`/`supports_global_capture` 全部经它分发。`from_proxy` 仍是注册映射（暂未做 `Box<dyn>` 注册表）。
+3. ✅ **UDP 分发收敛**（PR #493）：`supports_udp_associate` 与 `resolve_udp_egress` 的协议清单收敛到单一 `udp_egress_for` 真源（前者由后者派生，加 `supports_udp_associate_tracks_resolve_egress` 守护测试）；`run_egress` 去掉通配、改为穷尽匹配。**注意**：UDP egress 运行器（`run_egress`/`run_*_egress`）对 `ReplySink` 泛型，不是对象安全的，无法并入 `dyn` trait，因此 `UdpEgress` 仍保留为枚举（QUIC datagram / proxy-stream / 裸 UDP socket / udp-over-tcp 四类语义 + 各自 runner），由穷尽 match 防漂移——这是设计约束而非堆叠。
 4. **拆巨石文件**：ssr / snell / anytls / wireguard 目录化。
