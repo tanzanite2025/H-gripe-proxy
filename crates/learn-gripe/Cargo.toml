@@ -34,7 +34,7 @@ argon2 = { version = "0.5.3" }
 # backend, so the kernel composes its own `Hpke` provider from these vetted
 # primitives (X25519 key agreement + HKDF-SHA256), reusing the AEAD crates above.
 hkdf = { version = "0.12.4" }
-x25519-dalek = { version = "2.0.1", default-features = false, features = ["precomputed-tables", "alloc"] }
+x25519-dalek = { version = "2.0.1", default-features = false, features = ["precomputed-tables", "alloc", "getrandom"] }
 # BLAKE3 key-derivation for the Shadowsocks 2022 (`2022-blake3-*`) session
 # subkey: `derive_key("shadowsocks 2022 session subkey", PSK || salt)`. Pure-Rust
 # build (no C/asm toolchain) for clean cross-compilation.

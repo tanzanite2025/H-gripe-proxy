@@ -543,9 +543,11 @@ fn outbound_label(outbound: &OutboundMode) -> &'static str {
         OutboundMode::Shadowsocks(_) => "shadowsocks",
         OutboundMode::Tuic(_) => "tuic",
         OutboundMode::Hysteria2(_) => "hysteria2",
+        OutboundMode::Masque(_) => "masque",
         OutboundMode::AnyTls(_) => "anytls",
         OutboundMode::Snell(_) => "snell",
         OutboundMode::Ssr(_) => "ssr",
+        OutboundMode::Sudoku(_) => "sudoku",
         OutboundMode::WireGuard(_) => "wireguard",
         OutboundMode::Routed(_) => "routed",
     }

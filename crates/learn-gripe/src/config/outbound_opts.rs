@@ -355,6 +355,50 @@ pub struct ProxyOptions {
     /// stream (reliable, no datagram-MTU ceiling). Defaults to `native`.
     #[serde(rename = "udp-relay-mode")]
     pub udp_relay_mode: Option<String>,
+
+    // Sudoku outbound (`type: sudoku`). `key` (above) is the pre-shared secret.
+    /// AEAD record cipher (`aead-method`): `chacha20-poly1305` (default),
+    /// `aes-128-gcm`, or `none`.
+    #[serde(rename = "aead-method")]
+    pub aead_method: Option<String>,
+    /// Sudoku obfuscation table layout (`table-type`): `prefer_entropy`
+    /// (default), `prefer_ascii`, or directional `up_<a>_down_<b>` forms.
+    #[serde(rename = "table-type")]
+    pub table_type: Option<String>,
+    /// Use the plain (one-byte → four-hint) downlink obfuscation instead of the
+    /// 6-bit packed downlink (`enable-pure-downlink`). The kernel implements the
+    /// pure downlink only, so this must be enabled.
+    #[serde(rename = "enable-pure-downlink")]
+    pub enable_pure_downlink: Option<bool>,
+    /// Single custom 8-character table pattern (`custom-table`) used by the
+    /// entropy layout (exactly 2 `x`, 2 `p`, 4 `v`).
+    #[serde(rename = "custom-table")]
+    pub custom_table: Option<String>,
+    /// Multiple custom table patterns (`custom-tables`); the first is used.
+    #[serde(rename = "custom-tables")]
+    pub custom_tables: Option<Vec<String>>,
+    /// Minimum per-byte padding probability percentage (`padding-min`).
+    #[serde(rename = "padding-min")]
+    pub padding_min: Option<u32>,
+    /// Maximum per-byte padding probability percentage (`padding-max`).
+    #[serde(rename = "padding-max")]
+    pub padding_max: Option<u32>,
+    /// Sudoku HTTP-masking options (`httpmask`). The kernel supports only the
+    /// disabled form; a non-disabled mask is rejected.
+    pub httpmask: Option<SudokuHttpMask>,
+}
+
+/// Sudoku HTTP-masking options (`httpmask`). Only the `disable` flag is honoured
+/// by the kernel; the remaining fields are parsed for completeness so a config
+/// that disables masking round-trips cleanly.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(default)]
+pub struct SudokuHttpMask {
+    pub disable: Option<bool>,
+    pub mode: Option<String>,
+    pub host: Option<String>,
+    #[serde(rename = "type")]
+    pub kind: Option<String>,
 }
 
 /// One entry of a WireGuard `peers` list: a peer endpoint with its own key
