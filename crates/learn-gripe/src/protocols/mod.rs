@@ -19,6 +19,7 @@ pub mod snell;
 pub mod ss_plugin;
 pub mod ssh;
 pub mod ssr;
+pub mod sudoku;
 pub mod trojan;
 pub mod tuic;
 pub mod vision;

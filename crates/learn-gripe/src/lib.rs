@@ -45,6 +45,7 @@ pub use protocols::shadowsocks::{ShadowsocksCipher, ShadowsocksOutboundConfig};
 pub use protocols::snell::{SnellObfs, SnellOutboundConfig};
 pub use protocols::ssh::{SshAuth, SshOutboundConfig};
 pub use protocols::ssr::{SsrCipher, SsrObfs, SsrOutboundConfig, SsrProtocol};
+pub use protocols::sudoku::SudokuOutboundConfig;
 pub use protocols::trojan::TrojanOutboundConfig;
 pub use protocols::tuic::{TuicOutboundConfig, UdpRelayMode};
 pub use protocols::vless::VlessOutboundConfig;

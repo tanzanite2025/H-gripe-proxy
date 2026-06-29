@@ -14,6 +14,7 @@ use crate::protocols::shadowsocks::ShadowsocksOutboundConfig;
 use crate::protocols::snell::SnellOutboundConfig;
 use crate::protocols::ssh::SshOutboundConfig;
 use crate::protocols::ssr::SsrOutboundConfig;
+use crate::protocols::sudoku::SudokuOutboundConfig;
 use crate::protocols::trojan::TrojanOutboundConfig;
 use crate::protocols::tuic::TuicOutboundConfig;
 use crate::protocols::vless::VlessOutboundConfig;
@@ -72,6 +73,8 @@ pub enum OutboundMode {
     Mieru(Box<MieruOutboundConfig>),
     /// Forward through a ShadowsocksR (SSR) outbound.
     Ssr(Box<SsrOutboundConfig>),
+    /// Forward through a Sudoku outbound (TCP-only obfuscated tunnel).
+    Sudoku(Box<SudokuOutboundConfig>),
     /// Forward through a WireGuard outbound (L3 tunnel + userspace netstack).
     WireGuard(Box<WireGuardOutboundConfig>),
     /// Select the outbound per connection from a rule list.
@@ -122,6 +125,7 @@ impl OutboundMode {
             )?))),
             ProxyType::Mieru => Ok(OutboundMode::Mieru(Box::new(MieruOutboundConfig::from_proxy(entry)?))),
             ProxyType::ShadowsocksR => Ok(OutboundMode::Ssr(Box::new(SsrOutboundConfig::from_proxy(entry)?))),
+            ProxyType::Sudoku => Ok(OutboundMode::Sudoku(Box::new(SudokuOutboundConfig::from_proxy(entry)?))),
             ProxyType::WireGuard => Ok(OutboundMode::WireGuard(Box::new(WireGuardOutboundConfig::from_proxy(
                 entry,
             )?))),
@@ -157,6 +161,7 @@ impl OutboundMode {
             OutboundMode::GostRelay(c) => vec![(c.server.clone(), c.port)],
             OutboundMode::Mieru(c) => vec![(c.server.clone(), c.port)],
             OutboundMode::Ssr(c) => vec![(c.server.clone(), c.port)],
+            OutboundMode::Sudoku(c) => vec![(c.server.clone(), c.port)],
             OutboundMode::WireGuard(c) => vec![(c.server.clone(), c.port)],
             OutboundMode::Routed(router) => router
                 .outbound_modes()
@@ -187,6 +192,7 @@ impl OutboundMode {
             OutboundMode::GostRelay(_) => "gost-relay",
             OutboundMode::Mieru(_) => "mieru",
             OutboundMode::Ssr(_) => "ssr",
+            OutboundMode::Sudoku(_) => "sudoku",
             OutboundMode::WireGuard(_) => "wireguard",
             OutboundMode::Routed(_) => "routed",
         }
@@ -216,6 +222,7 @@ impl OutboundMode {
                 | OutboundMode::GostRelay(_)
                 | OutboundMode::Mieru(_)
                 | OutboundMode::Ssr(_)
+                | OutboundMode::Sudoku(_)
                 | OutboundMode::WireGuard(_)
         )
     }

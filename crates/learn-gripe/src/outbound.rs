@@ -13,6 +13,7 @@ use crate::protocols::shadowsocks::{self, ShadowsocksOutboundConfig};
 use crate::protocols::snell::{self, SnellOutboundConfig};
 use crate::protocols::ssh;
 use crate::protocols::ssr::{self, SsrOutboundConfig};
+use crate::protocols::sudoku;
 use crate::protocols::trojan::{self, TrojanOutboundConfig};
 use crate::protocols::tuic::{self, TuicOutboundConfig};
 use crate::protocols::vless::{self, VlessOutboundConfig};
@@ -75,6 +76,7 @@ pub fn connect<'a>(
             OutboundMode::GostRelay(config) => gost_relay::connect(config, target).await,
             OutboundMode::Mieru(config) => mieru::connect(config, target).await,
             OutboundMode::Ssr(config) => ssr::connect(config, target).await,
+            OutboundMode::Sudoku(config) => sudoku::connect(config, target).await,
             OutboundMode::WireGuard(config) => wireguard::connect(config, target).await,
             OutboundMode::Routed(router) => {
                 connect(router.select_conn(target, ConnNetwork::Tcp, source), target, source).await
@@ -174,6 +176,7 @@ pub fn resolve_udp_egress(mode: &OutboundMode, target: &TargetAddr, source: Opti
         | OutboundMode::Ssh(_)
         | OutboundMode::GostRelay(_)
         | OutboundMode::Mieru(_)
+        | OutboundMode::Sudoku(_)
         | OutboundMode::Hysteria(_) => None,
     }
 }
