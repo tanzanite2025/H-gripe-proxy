@@ -184,7 +184,13 @@ pub(crate) async fn run_egress<S: ReplySink + Send + 'static>(
         UdpEgress::Masque(config) => run_masque_egress(config, target, rx, sink, idle).await,
         UdpEgress::Tuic(config) => run_tuic_egress(config, target, rx, sink, idle).await,
         UdpEgress::WireGuard(config) => run_wireguard_egress(config, target, rx, sink, idle).await,
-        proxy => run_proxy_egress(proxy, target, rx, sink, idle).await,
+        // Proxy-stream framings (Trojan / VLESS / VMess / AnyTLS) share the
+        // generic proxy egress loop. Listed explicitly (no wildcard) so a new
+        // transport must pick a runner here rather than silently defaulting to
+        // the proxy-stream path.
+        proxy @ (UdpEgress::Trojan(_) | UdpEgress::Vless(_) | UdpEgress::Vmess(_) | UdpEgress::AnyTls(_)) => {
+            run_proxy_egress(proxy, target, rx, sink, idle).await
+        }
     }
 }
 

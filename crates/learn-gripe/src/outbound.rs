@@ -188,37 +188,25 @@ pub enum UdpEgress {
     WireGuard(Box<WireGuardOutboundConfig>),
 }
 
-/// Whether `mode` can serve a SOCKS5 `UDP ASSOCIATE`. `Direct`, the UDP-capable
-/// proxy outbounds (Trojan/VLESS/VMess/Shadowsocks, the QUIC Hysteria2/TUIC
-/// datagram relays, and AnyTLS over udp-over-tcp v2), and `Routed` (which
-/// resolves per datagram) accept the
-/// association; `Reject` and an upstream SOCKS5 proxy (which has no UDP relay
-/// path here) make the inbound refuse it up front.
+/// Whether `mode` can serve a SOCKS5 `UDP ASSOCIATE`. `Routed` resolves per
+/// datagram so it accepts the association up front; every other mode is
+/// UDP-capable exactly when it yields a [`UdpEgress`] (see [`udp_egress_for`]),
+/// so the list of UDP-capable protocols lives in a single place and cannot
+/// drift from what [`resolve_udp_egress`] actually builds. `Reject` and an
+/// upstream SOCKS5/HTTP proxy (which has no UDP relay path here) make the
+/// inbound refuse the association.
 pub fn supports_udp_associate(mode: &OutboundMode) -> bool {
-    matches!(
-        mode,
-        OutboundMode::Direct
-            | OutboundMode::Trojan(_)
-            | OutboundMode::Vless(_)
-            | OutboundMode::Vmess(_)
-            | OutboundMode::Shadowsocks(_)
-            | OutboundMode::Tuic(_)
-            | OutboundMode::Hysteria2(_)
-            | OutboundMode::Masque(_)
-            | OutboundMode::AnyTls(_)
-            | OutboundMode::Ssr(_)
-            | OutboundMode::WireGuard(_)
-            | OutboundMode::Routed(_)
-    ) || matches!(mode, OutboundMode::Snell(config) if config.supports_udp())
+    matches!(mode, OutboundMode::Routed(_)) || udp_egress_for(mode).is_some()
 }
 
-/// Resolve the UDP egress for a datagram to `target` under `mode`, recursing
-/// through `Routed` per target. `source` is the inbound client's address (when
-/// known), used so `Routed` can evaluate `SRC-PORT` rules; pass `None` when
-/// unknown. Returns `None` for destinations that cannot carry UDP (`Reject`, an
-/// upstream SOCKS5 proxy, or a rule resolving to one), so the relay drops them
-/// rather than leaking traffic.
-pub fn resolve_udp_egress(mode: &OutboundMode, target: &TargetAddr, source: Option<SocketAddr>) -> Option<UdpEgress> {
+/// The UDP egress a single non-`Routed` outbound provides, if it can carry UDP.
+///
+/// This is the single source of truth for UDP capability: [`resolve_udp_egress`]
+/// (after resolving `Routed`) and [`supports_udp_associate`] both derive from
+/// it, so the set of UDP-capable protocols is enumerated exactly once. The match
+/// is exhaustive (no wildcard) so a new `OutboundMode` variant must declare its
+/// UDP behavior here.
+fn udp_egress_for(mode: &OutboundMode) -> Option<UdpEgress> {
     match mode {
         OutboundMode::Direct => Some(UdpEgress::Direct),
         OutboundMode::Trojan(config) => Some(UdpEgress::Trojan(config.clone())),
@@ -235,12 +223,12 @@ pub fn resolve_udp_egress(mode: &OutboundMode, target: &TargetAddr, source: Opti
         OutboundMode::Snell(_) => None,
         OutboundMode::Ssr(config) => Some(UdpEgress::Ssr(config.clone())),
         OutboundMode::WireGuard(config) => Some(UdpEgress::WireGuard(config.clone())),
-        OutboundMode::Routed(router) => {
-            resolve_udp_egress(router.select_conn(target, ConnNetwork::Udp, source), target, source)
-        }
-        // Reject blocks the datagram; an upstream SOCKS5/HTTP proxy has no UDP
-        // relay path here, so its associations are refused rather than leaked.
-        // Hysteria v1 here carries TCP only (no UDP relay yet), so its
+        // `Routed` is resolved per datagram by `resolve_udp_egress` before it
+        // reaches here; it has no egress of its own.
+        OutboundMode::Routed(_) => None,
+        // No UDP relay path: `Reject` blocks the datagram; an upstream
+        // SOCKS5/HTTP proxy has none here; SSH / GOST relay / mieru / sudoku are
+        // TCP-only; Hysteria v1 here carries TCP only (no UDP relay yet). Their
         // associations are refused rather than leaked.
         OutboundMode::Reject
         | OutboundMode::Socks5Upstream { .. }
@@ -250,6 +238,22 @@ pub fn resolve_udp_egress(mode: &OutboundMode, target: &TargetAddr, source: Opti
         | OutboundMode::Mieru(_)
         | OutboundMode::Sudoku(_)
         | OutboundMode::Hysteria(_) => None,
+    }
+}
+
+/// Resolve the UDP egress for a datagram to `target` under `mode`, recursing
+/// through `Routed` per target. `source` is the inbound client's address (when
+/// known), used so `Routed` can evaluate `SRC-PORT` rules; pass `None` when
+/// unknown. Returns `None` for destinations that cannot carry UDP (`Reject`, an
+/// upstream SOCKS5 proxy, or a rule resolving to one), so the relay drops them
+/// rather than leaking traffic.
+pub fn resolve_udp_egress(mode: &OutboundMode, target: &TargetAddr, source: Option<SocketAddr>) -> Option<UdpEgress> {
+    match mode {
+        OutboundMode::Routed(router) => {
+            resolve_udp_egress(router.select_conn(target, ConnNetwork::Udp, source), target, source)
+        }
+        // Egress selection for every concrete outbound is target-independent.
+        other => udp_egress_for(other),
     }
 }
 
@@ -330,5 +334,34 @@ mod tests {
             resolve_udp_egress(&OutboundMode::Reject, &ip_target(8, 8, 8, 8), None),
             None
         );
+    }
+
+    /// `supports_udp_associate` must stay derived from the same source of truth
+    /// as `resolve_udp_egress`: for any non-`Routed` mode it is true exactly when
+    /// an egress resolves. This locks the two functions together so they cannot
+    /// drift back into separately maintained per-protocol lists.
+    #[test]
+    fn supports_udp_associate_tracks_resolve_egress() {
+        let target = ip_target(8, 8, 8, 8);
+        let socks5 = OutboundMode::Socks5Upstream {
+            addr: "127.0.0.1:1080".parse().unwrap(),
+        };
+        for mode in [OutboundMode::Direct, OutboundMode::Reject, socks5] {
+            let resolves = resolve_udp_egress(&mode, &target, None).is_some();
+            assert_eq!(
+                supports_udp_associate(&mode),
+                resolves,
+                "supports_udp_associate/resolve_udp_egress drift for {mode:?}"
+            );
+        }
+
+        // `Routed` accepts the association up front even though a given target
+        // may resolve to a non-UDP egress (dropped per datagram).
+        let mut outbounds = HashMap::new();
+        outbounds.insert("blocked".to_string(), OutboundMode::Reject);
+        let router = Router::new(outbounds, Vec::new(), "blocked").unwrap();
+        let routed = OutboundMode::Routed(Box::new(router));
+        assert!(supports_udp_associate(&routed));
+        assert_eq!(resolve_udp_egress(&routed, &target, None), None);
     }
 }
