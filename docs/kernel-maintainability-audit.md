@@ -1,6 +1,8 @@
 # learn-gripe 内核可维护性审计
 
-> **状态：本审计建议的拆分已全部完成（2026-06）。** 下文「现状画像」记录的是重构*之前*的平铺结构，保留作为本轮重构的动机与依据记录。落地 PR：#431/#432（目录化）、#433（routing 拆分）、#434（conntrack + proxy）、#435（UDP egress 收敛）、#436（tun.rs 拆分）。当前 `crates/learn-gripe/src` 已按 `protocols/ transport/ inbound/ routing/ dns/ tun/ conntrack/ config/` 分层。
+> **状态：第一轮（目录分层）已全部完成（2026-06）。** 下文 §1–§4「现状画像」记录的是重构*之前*的平铺结构，保留作为本轮重构的动机与依据记录。落地 PR：#431/#432（目录化）、#433（routing 拆分）、#434（conntrack + proxy）、#435（UDP egress 收敛）、#436（tun.rs 拆分）。当前 `crates/learn-gripe/src` 已按 `protocols/ transport/ inbound/ routing/ dns/ tun/ conntrack/ config/` 分层。
+>
+> **第二轮（待办）见 §5：每协议「身份」散落在十余处平行 `match`/列表，新增协议需手工同步全部站点，已造成过真实漂移 bug。** 这是协议数量增长后的首要可维护性风险。
 >
 > 目的：理清 `crates/learn-gripe` 各文件职责、识别混合关注点与拆分点，给出建议的模块分层。
 > 范围：**只做分析与建议，不改任何代码**。理清后再对应前后端。
@@ -144,3 +146,65 @@ src/
 5. **conntrack 拆 relay**、**proxy.rs 改名归位**：低风险收尾。
 
 > 对外 API（`GripeHandle/GripeKernel/Router/DnsHandle/serve_tun` 等）全部由 `lib.rs` 的 `pub use` 重新导出，因此以上重组**不影响 src-tauri / 前后端调用面**——前后端对接可在结构理清后再做，互不阻塞。
+
+---
+
+## 5. 第二轮：每协议分发逻辑散落（2026-06 之后新增）
+
+第一轮把*文件*按职责分了层，但**单个出站协议的「身份」仍横向散落在十余处平行的 `match`/列表里**，彼此靠人肉保持同步。协议数量从个位数涨到 20+ 后，这已成为新增协议时最易出错、也最容易悄悄漂移的点。
+
+### 5.1 一个协议要改的站点（当前 ≈ 12 处）
+
+新增一个出站协议（以最近的 masque / sudoku 为例），必须在以下每一处各加一行/一臂，缺一处就行为不一致：
+
+| 文件 | 站点 | 作用 |
+|---|---|---|
+| `config/mod.rs` | `OutboundMode` 枚举 | 出站类型变体 |
+| `config/mod.rs` | `OutboundMode::from_proxy` | 配置 → 出站构造 |
+| `config/mod.rs` | `direct_dial_endpoints` | TUN 全局捕获的 bypass 端点 |
+| `config/mod.rs` | `type_label` | 连接簿记标签 |
+| `config/mod.rs` | `supports_global_capture` | 能否做 TUN 默认路由 |
+| `outbound.rs` | `connect` | TCP 出站分发 |
+| `outbound.rs` | `UdpEgress` 枚举 | UDP egress 变体 |
+| `outbound.rs` | `supports_udp_associate` | 能否 UDP ASSOCIATE |
+| `outbound.rs` | `resolve_udp_egress` | UDP egress 选择 |
+| `outbound.rs` | `connect_proxy_udp` | UDP 隧道流建立 |
+| `config/outbound_opts.rs` | `ProxyType` 枚举 + `ProxyEntry::support()` | 前端「是否已实现」信号 |
+| `src-tauri/.../lifecycle.rs` | `outbound_label` | app 侧标签 |
+
+### 5.2 已发生的真实漂移（已修，留作证据）
+
+`ProxyEntry::support()` 曾用 `_ => Unsupported` 兜底，长期与 `from_proxy` 脱节：**tuic / hysteria2 / anytls / snell / masque / sudoku / wireguard 的数据面早已接好，却被报成 `Unsupported`**，前端拿到的「是否可用」信号是错的。
+
+- 修复 PR：**#490** —— 把 `support()` 改成对 `ProxyType` 的穷尽 `match`（去掉通配），并加 `tests/proxy_schema.rs::support_matches_from_proxy`：遍历每个 `ProxyType`，断言 `support()==Implemented` 当且仅当 `from_proxy` 认识该类型。这是把「同一份事实的两处副本」用测试钉死的**止血手段**，但根因（多处副本）仍在。
+
+### 5.3 待办：用 trait + 注册表收敛分发
+
+目标：让「一个协议」= **一处定义**，而不是十二处平行分支。
+
+1. **引入 `Outbound` trait**，每协议实现一次：
+   ```rust
+   trait Outbound {
+       fn label(&self) -> &'static str;
+       fn endpoint(&self) -> (String, u16);          // direct_dial_endpoints
+       fn supports_global_capture(&self) -> bool;
+       async fn connect_tcp(&self, target: &TargetAddr) -> Result<BoxedStream>;
+       fn udp_capability(&self) -> UdpCapability;     // 取代 supports_udp_associate / resolve_udp_egress / connect_proxy_udp 的分散判断
+   }
+   ```
+   `connect` / `type_label` / `direct_dial_endpoints` / `supports_global_capture` / `supports_udp_associate` / `resolve_udp_egress` / `connect_proxy_udp` 由对 trait 对象的统一调用取代，~10 处 `match` 压成 1~2 处。
+2. **`from_proxy` 收敛为注册表**：`ProxyType → fn(&ProxyEntry) -> Result<Box<dyn Outbound>>` 的单一映射表；`support()` 直接由「该类型在表中是否存在」派生，§5.2 的漂移从结构上不再可能。
+3. **穷尽性兜底**：保留 §5.2 的 `support_matches_from_proxy` 思路；对 trait 化后无法用类型系统覆盖的列表（如 app 侧 `outbound_label`），补 over-`ProxyType` 的穷尽测试。
+
+> 行为风险：UDP 侧（`UdpEgress` / QUIC datagram vs proxy-stream vs 裸 UDP socket 三类语义）合并需逐协议核对，建议单独 PR、重点测试，与 TCP 收敛分开做。
+
+### 5.4 顺带：超出仓库 800 行上限的协议巨石文件
+
+`ssr.rs`(2095) · `snell.rs`(2178) · `anytls.rs`(1682) · `wireguard.rs`(1671)。功能无误，但应按 `protocols/sudoku/` 的范式（obfs/record/kip/table/… 拆成 8 个小文件）拆到各自的 `protocols/<name>/` 子目录。低风险、可独立 PR。
+
+### 5.5 建议执行顺序（每步独立 PR、独立过 CI）
+
+1. ✅ **止血**：修 `support()` 漂移 + 穷尽测试（PR #490，已合并）。
+2. **TCP 分发 trait 化**：引入 `Outbound` trait + 注册表，收敛 `connect`/`label`/`endpoint`/`capture`/`from_proxy`/`support`；UDP 暂留旧路径。
+3. **UDP 分发收敛**（唯一有真实行为风险的一步）：把 `UdpEgress` 三类语义并入 trait，逐协议核对后合并。
+4. **拆巨石文件**：ssr / snell / anytls / wireguard 目录化。
