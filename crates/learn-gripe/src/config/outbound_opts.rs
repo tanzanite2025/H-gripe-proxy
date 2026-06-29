@@ -47,6 +47,10 @@ impl ProxyEntry {
     /// reported as [`ProtocolSupport::Unsupported`] rather than rejected at
     /// parse time.
     pub fn support(&self) -> ProtocolSupport {
+        // Exhaustive (no wildcard) so adding a `ProxyType` forces a deliberate
+        // classification here, and this stays in lock-step with the set
+        // `OutboundMode::from_proxy` actually builds (guarded by
+        // `tests/proxy_schema.rs::support_matches_from_proxy`).
         match self.kind {
             // Wired into an `OutboundMode` and reachable via `OutboundMode::from_proxy`.
             ProxyType::Direct
@@ -54,16 +58,27 @@ impl ProxyEntry {
             | ProxyType::Socks5
             | ProxyType::Http
             | ProxyType::Shadowsocks
+            | ProxyType::ShadowsocksR
             | ProxyType::Trojan
             | ProxyType::Vmess
             | ProxyType::Vless
-            | ProxyType::Ssh
+            | ProxyType::Tuic
             | ProxyType::Hysteria
+            | ProxyType::Hysteria2
+            | ProxyType::Masque
+            | ProxyType::AnyTls
+            | ProxyType::Snell
+            | ProxyType::Ssh
             | ProxyType::GostRelay
             | ProxyType::Mieru
-            | ProxyType::ShadowsocksR => ProtocolSupport::Implemented,
+            | ProxyType::Sudoku
+            | ProxyType::WireGuard => ProtocolSupport::Implemented,
             // Parsed and type-checked, but no outbound data plane yet.
-            _ => ProtocolSupport::Unsupported,
+            ProxyType::Dns
+            | ProxyType::TrustTunnel
+            | ProxyType::OpenVpn
+            | ProxyType::Tailscale
+            | ProxyType::Unknown => ProtocolSupport::Unsupported,
         }
     }
 }
