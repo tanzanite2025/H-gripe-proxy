@@ -3,17 +3,17 @@ use crate::config::OutboundMode;
 use crate::conntrack::ConnNetwork;
 use crate::inbound::socks5;
 use crate::protocols::anytls::{self, AnyTlsOutboundConfig};
-use crate::protocols::gost_relay;
-use crate::protocols::http;
-use crate::protocols::hysteria;
+use crate::protocols::gost_relay::{self, GostRelayOutboundConfig};
+use crate::protocols::http::{self, HttpOutboundConfig};
+use crate::protocols::hysteria::{self, HysteriaOutboundConfig};
 use crate::protocols::hysteria2::{self, Hysteria2OutboundConfig};
 use crate::protocols::masque::MasqueOutboundConfig;
-use crate::protocols::mieru;
+use crate::protocols::mieru::{self, MieruOutboundConfig};
 use crate::protocols::shadowsocks::{self, ShadowsocksOutboundConfig};
 use crate::protocols::snell::{self, SnellOutboundConfig};
-use crate::protocols::ssh;
+use crate::protocols::ssh::{self, SshOutboundConfig};
 use crate::protocols::ssr::{self, SsrOutboundConfig};
-use crate::protocols::sudoku;
+use crate::protocols::sudoku::{self, SudokuOutboundConfig};
 use crate::protocols::trojan::{self, TrojanOutboundConfig};
 use crate::protocols::tuic::{self, TuicOutboundConfig};
 use crate::protocols::vless::{self, VlessOutboundConfig};
@@ -34,6 +34,90 @@ impl<T: AsyncRead + AsyncWrite + Unpin + Send> AsyncStream for T {}
 
 /// Boxed outbound stream used by the relay loop.
 pub type BoxedStream = Box<dyn AsyncStream>;
+
+/// Boxed future returned by [`TcpOutbound::connect_tcp`].
+pub type BoxConnectFuture<'a> = Pin<Box<dyn Future<Output = Result<BoxedStream>> + Send + 'a>>;
+
+/// The per-protocol behavior of a single outbound: how to dial it, what to
+/// label it, and the fixed upstream it talks to.
+///
+/// This is the convergence point for the proxy [`OutboundMode`] variants:
+/// instead of every protocol being threaded through a separate `match` in
+/// `connect` / `type_label` / `direct_dial_endpoints` /
+/// `supports_global_capture`, each protocol implements this trait once and
+/// [`OutboundMode::as_tcp_outbound`] is the single place that maps a variant to
+/// its implementation. The non-protocol variants (`Direct` / `Reject` /
+/// `Socks5Upstream` / `Routed`) are not `TcpOutbound`s and stay special-cased.
+pub trait TcpOutbound: Send + Sync {
+    /// Short outbound type label used for connection bookkeeping.
+    fn type_label(&self) -> &'static str;
+
+    /// The fixed upstream `(host, port)` this outbound dials directly over the
+    /// host network — the endpoint a global TUN capture must route around.
+    fn dial_endpoint(&self) -> (String, u16);
+
+    /// Whether installing a global TUN default-route capture is sound for this
+    /// outbound. True for the single-server proxy modes; overridden to false by
+    /// the UDP-only outbounds that cannot carry the captured TCP traffic.
+    fn supports_global_capture(&self) -> bool {
+        true
+    }
+
+    /// Open a relay-ready TCP stream to `target`.
+    fn connect_tcp<'a>(&'a self, target: &'a TargetAddr) -> BoxConnectFuture<'a>;
+}
+
+/// MASQUE CONNECT-UDP carries UDP only; there is no TCP relay path, so its
+/// `connect_tcp` errors the same way the old `connect` match arm did.
+async fn masque_no_tcp(_config: &MasqueOutboundConfig, target: &TargetAddr) -> Result<BoxedStream> {
+    bail!("masque: CONNECT-UDP is UDP-only; no TCP relay for {target}")
+}
+
+/// Implement [`TcpOutbound`] for a protocol config that exposes `server`/`port`
+/// fields and a free `connect(&Config, &TargetAddr)` entrypoint. The optional
+/// `no_capture` form marks an outbound that cannot back a global TUN capture.
+macro_rules! impl_tcp_outbound {
+    ($cfg:ty, $label:literal, $connect:path) => {
+        impl_tcp_outbound!(@inner $cfg, $label, $connect, true);
+    };
+    ($cfg:ty, $label:literal, $connect:path, no_capture) => {
+        impl_tcp_outbound!(@inner $cfg, $label, $connect, false);
+    };
+    (@inner $cfg:ty, $label:literal, $connect:path, $capture:expr) => {
+        impl TcpOutbound for $cfg {
+            fn type_label(&self) -> &'static str {
+                $label
+            }
+            fn dial_endpoint(&self) -> (String, u16) {
+                (self.server.clone(), self.port)
+            }
+            fn supports_global_capture(&self) -> bool {
+                $capture
+            }
+            fn connect_tcp<'a>(&'a self, target: &'a TargetAddr) -> BoxConnectFuture<'a> {
+                Box::pin($connect(self, target))
+            }
+        }
+    };
+}
+
+impl_tcp_outbound!(HttpOutboundConfig, "http", http::connect);
+impl_tcp_outbound!(VlessOutboundConfig, "vless", vless::connect);
+impl_tcp_outbound!(TrojanOutboundConfig, "trojan", trojan::connect);
+impl_tcp_outbound!(VmessOutboundConfig, "vmess", vmess::connect);
+impl_tcp_outbound!(ShadowsocksOutboundConfig, "shadowsocks", shadowsocks::connect);
+impl_tcp_outbound!(TuicOutboundConfig, "tuic", tuic::connect);
+impl_tcp_outbound!(HysteriaOutboundConfig, "hysteria", hysteria::connect);
+impl_tcp_outbound!(Hysteria2OutboundConfig, "hysteria2", hysteria2::connect);
+impl_tcp_outbound!(MasqueOutboundConfig, "masque", masque_no_tcp, no_capture);
+impl_tcp_outbound!(AnyTlsOutboundConfig, "anytls", anytls::connect);
+impl_tcp_outbound!(SnellOutboundConfig, "snell", snell::connect);
+impl_tcp_outbound!(SshOutboundConfig, "ssh", ssh::connect);
+impl_tcp_outbound!(GostRelayOutboundConfig, "gost-relay", gost_relay::connect);
+impl_tcp_outbound!(MieruOutboundConfig, "mieru", mieru::connect);
+impl_tcp_outbound!(SsrOutboundConfig, "ssr", ssr::connect);
+impl_tcp_outbound!(SudokuOutboundConfig, "sudoku", sudoku::connect);
+impl_tcp_outbound!(WireGuardOutboundConfig, "wireguard", wireguard::connect);
 
 /// Establish an outbound connection to `target` according to `mode` and return
 /// a stream that is ready for relaying. `source` is the inbound peer's address
@@ -60,27 +144,15 @@ pub fn connect<'a>(
                     .with_context(|| format!("upstream CONNECT to {target}"))?;
                 Ok(Box::new(stream) as BoxedStream)
             }
-            OutboundMode::Http(config) => http::connect(config, target).await,
-            OutboundMode::Vless(config) => vless::connect(config, target).await,
-            OutboundMode::Trojan(config) => trojan::connect(config, target).await,
-            OutboundMode::Vmess(config) => vmess::connect(config, target).await,
-            OutboundMode::Shadowsocks(config) => shadowsocks::connect(config, target).await,
-            OutboundMode::Tuic(config) => tuic::connect(config, target).await,
-            OutboundMode::Hysteria(config) => hysteria::connect(config, target).await,
-            OutboundMode::Hysteria2(config) => hysteria2::connect(config, target).await,
-            // MASQUE CONNECT-UDP carries UDP only; there is no TCP relay path.
-            OutboundMode::Masque(_) => bail!("masque: CONNECT-UDP is UDP-only; no TCP relay for {target}"),
-            OutboundMode::AnyTls(config) => anytls::connect(config, target).await,
-            OutboundMode::Snell(config) => snell::connect(config, target).await,
-            OutboundMode::Ssh(config) => ssh::connect(config, target).await,
-            OutboundMode::GostRelay(config) => gost_relay::connect(config, target).await,
-            OutboundMode::Mieru(config) => mieru::connect(config, target).await,
-            OutboundMode::Ssr(config) => ssr::connect(config, target).await,
-            OutboundMode::Sudoku(config) => sudoku::connect(config, target).await,
-            OutboundMode::WireGuard(config) => wireguard::connect(config, target).await,
             OutboundMode::Routed(router) => {
                 connect(router.select_conn(target, ConnNetwork::Tcp, source), target, source).await
             }
+            // Every protocol variant is a `TcpOutbound`; dispatch through the
+            // single mapping in `OutboundMode::as_tcp_outbound`.
+            proxy => match proxy.as_tcp_outbound() {
+                Some(outbound) => outbound.connect_tcp(target).await,
+                None => bail!("connection to {target}: unsupported outbound mode"),
+            },
         }
     })
 }
