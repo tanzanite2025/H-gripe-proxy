@@ -181,6 +181,7 @@ pub(crate) async fn run_egress<S: ReplySink + Send + 'static>(
         UdpEgress::Ssr(config) => run_ssr_egress(config, target, rx, sink, idle).await,
         UdpEgress::Snell(config) => run_snell_egress(config, target, rx, sink, idle).await,
         UdpEgress::Hysteria2(config) => run_hysteria2_egress(config, target, rx, sink, idle).await,
+        UdpEgress::Masque(config) => run_masque_egress(config, target, rx, sink, idle).await,
         UdpEgress::Tuic(config) => run_tuic_egress(config, target, rx, sink, idle).await,
         UdpEgress::WireGuard(config) => run_wireguard_egress(config, target, rx, sink, idle).await,
         proxy => run_proxy_egress(proxy, target, rx, sink, idle).await,
@@ -340,6 +341,33 @@ async fn run_hysteria2_egress<S: ReplySink>(
     }
 }
 
+/// MASQUE UDP egress: relay datagrams as HTTP Datagrams (RFC 9297) over QUIC
+/// datagram frames on the CONNECT-UDP tunnel (RFC 9298) to `target`.
+async fn run_masque_egress<S: ReplySink>(
+    config: Box<crate::protocols::masque::MasqueOutboundConfig>,
+    target: TargetAddr,
+    mut rx: mpsc::Receiver<Vec<u8>>,
+    sink: S,
+    idle: Option<Duration>,
+) -> Result<()> {
+    let session = crate::protocols::masque::connect_udp(&config, &target).await?;
+    loop {
+        tokio::select! {
+            maybe = rx.recv() => match maybe {
+                Some(payload) => session.send(&payload).await?,
+                None => return Ok(()),
+            },
+            res = session.recv() => {
+                let payload = res?;
+                if !sink.deliver(&payload).await {
+                    return Ok(());
+                }
+            }
+            _ = idle_elapsed(idle) => return Ok(()),
+        }
+    }
+}
+
 /// TUIC UDP egress: relay datagrams over QUIC `Packet` datagram frames on the
 /// authenticated TUIC connection, fragmenting/reassembling per packet.
 async fn run_tuic_egress<S: ReplySink>(
@@ -452,6 +480,7 @@ impl ProxyFraming {
             | UdpEgress::Ssr(_)
             | UdpEgress::Snell(_)
             | UdpEgress::Hysteria2(_)
+            | UdpEgress::Masque(_)
             | UdpEgress::Tuic(_)
             | UdpEgress::WireGuard(_) => ProxyFraming::Chunked,
         }

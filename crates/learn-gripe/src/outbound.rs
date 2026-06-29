@@ -7,6 +7,7 @@ use crate::protocols::gost_relay;
 use crate::protocols::http;
 use crate::protocols::hysteria;
 use crate::protocols::hysteria2::{self, Hysteria2OutboundConfig};
+use crate::protocols::masque::MasqueOutboundConfig;
 use crate::protocols::mieru;
 use crate::protocols::shadowsocks::{self, ShadowsocksOutboundConfig};
 use crate::protocols::snell::{self, SnellOutboundConfig};
@@ -66,6 +67,8 @@ pub fn connect<'a>(
             OutboundMode::Tuic(config) => tuic::connect(config, target).await,
             OutboundMode::Hysteria(config) => hysteria::connect(config, target).await,
             OutboundMode::Hysteria2(config) => hysteria2::connect(config, target).await,
+            // MASQUE CONNECT-UDP carries UDP only; there is no TCP relay path.
+            OutboundMode::Masque(_) => bail!("masque: CONNECT-UDP is UDP-only; no TCP relay for {target}"),
             OutboundMode::AnyTls(config) => anytls::connect(config, target).await,
             OutboundMode::Snell(config) => snell::connect(config, target).await,
             OutboundMode::Ssh(config) => ssh::connect(config, target).await,
@@ -92,6 +95,9 @@ pub enum UdpEgress {
     Shadowsocks(Box<ShadowsocksOutboundConfig>),
     /// Hysteria2 carries datagrams over QUIC datagram frames, not a proxy stream.
     Hysteria2(Box<Hysteria2OutboundConfig>),
+    /// MASQUE carries datagrams as HTTP Datagrams over QUIC datagram frames
+    /// (CONNECT-UDP), not a proxy stream.
+    Masque(Box<MasqueOutboundConfig>),
     /// TUIC carries datagrams over QUIC `Packet` datagram frames.
     Tuic(Box<TuicOutboundConfig>),
     /// AnyTLS carries datagrams over a udp-over-tcp v2 session stream.
@@ -124,6 +130,7 @@ pub fn supports_udp_associate(mode: &OutboundMode) -> bool {
             | OutboundMode::Shadowsocks(_)
             | OutboundMode::Tuic(_)
             | OutboundMode::Hysteria2(_)
+            | OutboundMode::Masque(_)
             | OutboundMode::AnyTls(_)
             | OutboundMode::Ssr(_)
             | OutboundMode::WireGuard(_)
@@ -146,6 +153,7 @@ pub fn resolve_udp_egress(mode: &OutboundMode, target: &TargetAddr, source: Opti
         OutboundMode::Shadowsocks(config) => Some(UdpEgress::Shadowsocks(config.clone())),
         OutboundMode::Tuic(config) => Some(UdpEgress::Tuic(config.clone())),
         OutboundMode::Hysteria2(config) => Some(UdpEgress::Hysteria2(config.clone())),
+        OutboundMode::Masque(config) => Some(UdpEgress::Masque(config.clone())),
         OutboundMode::AnyTls(config) => Some(UdpEgress::AnyTls(config.clone())),
         // Snell UDP (CommandUDP) is supported on v3 + v4/v5; v1/v2 carry TCP
         // only, so drop UDP rather than mis-frame it.
@@ -186,6 +194,7 @@ pub async fn connect_proxy_udp(egress: &UdpEgress, target: &TargetAddr) -> Resul
         | UdpEgress::Ssr(_)
         | UdpEgress::Snell(_)
         | UdpEgress::Hysteria2(_)
+        | UdpEgress::Masque(_)
         | UdpEgress::Tuic(_)
         | UdpEgress::WireGuard(_) => {
             bail!("egress has no proxy tunnel")

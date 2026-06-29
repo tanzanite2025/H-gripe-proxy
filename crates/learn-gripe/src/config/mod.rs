@@ -8,6 +8,7 @@ use crate::protocols::gost_relay::GostRelayOutboundConfig;
 use crate::protocols::http::HttpOutboundConfig;
 use crate::protocols::hysteria::HysteriaOutboundConfig;
 use crate::protocols::hysteria2::Hysteria2OutboundConfig;
+use crate::protocols::masque::MasqueOutboundConfig;
 use crate::protocols::mieru::MieruOutboundConfig;
 use crate::protocols::shadowsocks::ShadowsocksOutboundConfig;
 use crate::protocols::snell::SnellOutboundConfig;
@@ -57,6 +58,8 @@ pub enum OutboundMode {
     Hysteria(Box<HysteriaOutboundConfig>),
     /// Forward through a Hysteria2 (QUIC) outbound.
     Hysteria2(Box<Hysteria2OutboundConfig>),
+    /// Forward through a MASQUE CONNECT-UDP (QUIC/HTTP3) outbound (UDP-only).
+    Masque(Box<MasqueOutboundConfig>),
     /// Forward through an AnyTLS outbound.
     AnyTls(Box<AnyTlsOutboundConfig>),
     /// Forward through a Snell outbound.
@@ -85,9 +88,10 @@ impl OutboundMode {
     /// own `from_proxy` parser, which rejects sub-features that are not
     /// implemented yet, so an entry either maps to an outbound that can
     /// actually carry its traffic or returns an error the caller can fall back
-    /// on. Protocols without a data plane yet (MASQUE, …) and the
+    /// on. Protocols without a data plane yet and the
     /// `select`/`url-test`/… proxy *groups* are reported as errors rather than
-    /// silently mis-routed. (TUIC, Hysteria v1/2, GOST relay, and mieru have a TCP data plane.)
+    /// silently mis-routed. (TUIC, Hysteria v1/2, GOST relay, and mieru have a TCP data plane;
+    /// MASQUE CONNECT-UDP is UDP-only.)
     pub fn from_proxy(entry: &ProxyEntry) -> Result<Self> {
         match entry.kind {
             ProxyType::Direct => Ok(OutboundMode::Direct),
@@ -109,6 +113,7 @@ impl OutboundMode {
             ProxyType::Hysteria2 => Ok(OutboundMode::Hysteria2(Box::new(Hysteria2OutboundConfig::from_proxy(
                 entry,
             )?))),
+            ProxyType::Masque => Ok(OutboundMode::Masque(Box::new(MasqueOutboundConfig::from_proxy(entry)?))),
             ProxyType::AnyTls => Ok(OutboundMode::AnyTls(Box::new(AnyTlsOutboundConfig::from_proxy(entry)?))),
             ProxyType::Snell => Ok(OutboundMode::Snell(Box::new(SnellOutboundConfig::from_proxy(entry)?))),
             ProxyType::Ssh => Ok(OutboundMode::Ssh(Box::new(SshOutboundConfig::from_proxy(entry)?))),
@@ -145,6 +150,7 @@ impl OutboundMode {
             OutboundMode::Tuic(c) => vec![(c.server.clone(), c.port)],
             OutboundMode::Hysteria(c) => vec![(c.server.clone(), c.port)],
             OutboundMode::Hysteria2(c) => vec![(c.server.clone(), c.port)],
+            OutboundMode::Masque(c) => vec![(c.server.clone(), c.port)],
             OutboundMode::AnyTls(c) => vec![(c.server.clone(), c.port)],
             OutboundMode::Snell(c) => vec![(c.server.clone(), c.port)],
             OutboundMode::Ssh(c) => vec![(c.server.clone(), c.port)],
@@ -174,6 +180,7 @@ impl OutboundMode {
             OutboundMode::Tuic(_) => "tuic",
             OutboundMode::Hysteria(_) => "hysteria",
             OutboundMode::Hysteria2(_) => "hysteria2",
+            OutboundMode::Masque(_) => "masque",
             OutboundMode::AnyTls(_) => "anytls",
             OutboundMode::Snell(_) => "snell",
             OutboundMode::Ssh(_) => "ssh",
@@ -299,8 +306,19 @@ mod tests {
 
     #[test]
     fn unimplemented_protocol_is_rejected() {
-        let err = OutboundMode::from_proxy(&entry("name: m\ntype: masque\nserver: a\nport: 1\n")).unwrap_err();
+        let err = OutboundMode::from_proxy(&entry("name: m\ntype: trusttunnel\nserver: a\nport: 1\n")).unwrap_err();
         assert!(err.to_string().contains("no learn-gripe outbound"), "{err}");
+    }
+
+    #[test]
+    fn masque_entry_maps_to_masque_outbound() {
+        let m = mode("name: m\ntype: masque\nserver: proxy.example\nport: 443\n");
+        assert!(matches!(m, OutboundMode::Masque(_)));
+        assert_eq!(m.type_label(), "masque");
+        assert_eq!(m.direct_dial_endpoints(), vec![("proxy.example".to_string(), 443)]);
+        // MASQUE CONNECT-UDP is UDP-only, so it cannot serve as a global-capture
+        // (TUN default-route) outbound.
+        assert!(!m.supports_global_capture());
     }
 
     #[test]
