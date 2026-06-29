@@ -142,11 +142,114 @@ fn support_classification() {
         parse("name: mr\ntype: mieru\nserver: a\nport: 2999\nusername: u\npassword: p\n").support(),
         ProtocolSupport::Implemented
     );
-    // Parsed and typed, but no outbound data plane yet.
+    // QUIC / session protocols whose outbound data plane is now wired in.
     assert_eq!(
         parse("name: h\ntype: hysteria2\nserver: a\nport: 443\npassword: p\n").support(),
+        ProtocolSupport::Implemented
+    );
+    // Parsed and typed, but no outbound data plane yet.
+    assert_eq!(
+        parse("name: o\ntype: openvpn\nserver: a\nport: 1194\n").support(),
         ProtocolSupport::Unsupported
     );
+}
+
+/// `ProxyEntry::support()` must stay in lock-step with what
+/// `OutboundMode::from_proxy` actually builds: a type is `Implemented` exactly
+/// when `from_proxy` recognizes it (i.e. does not hit the "no outbound yet"
+/// fallthrough). The exhaustive `match` forces every new `ProxyType` to be
+/// covered here, so the two cannot silently drift apart again.
+#[test]
+fn support_matches_from_proxy() {
+    use learn_gripe::OutboundMode;
+
+    let all = [
+        ProxyType::Direct,
+        ProxyType::Reject,
+        ProxyType::Socks5,
+        ProxyType::Http,
+        ProxyType::Shadowsocks,
+        ProxyType::ShadowsocksR,
+        ProxyType::Trojan,
+        ProxyType::Vmess,
+        ProxyType::Vless,
+        ProxyType::Tuic,
+        ProxyType::Hysteria,
+        ProxyType::Hysteria2,
+        ProxyType::Masque,
+        ProxyType::AnyTls,
+        ProxyType::Snell,
+        ProxyType::Ssh,
+        ProxyType::GostRelay,
+        ProxyType::Mieru,
+        ProxyType::Sudoku,
+        ProxyType::WireGuard,
+        ProxyType::Dns,
+        ProxyType::TrustTunnel,
+        ProxyType::OpenVpn,
+        ProxyType::Tailscale,
+        ProxyType::Unknown,
+    ];
+
+    for kind in all {
+        // Exhaustive: a newly added `ProxyType` won't compile until it gets a
+        // serde `type` string here, forcing it into this drift check.
+        let type_name = match kind {
+            ProxyType::Direct => "direct",
+            ProxyType::Reject => "reject",
+            ProxyType::Socks5 => "socks5",
+            ProxyType::Http => "http",
+            ProxyType::Shadowsocks => "ss",
+            ProxyType::ShadowsocksR => "ssr",
+            ProxyType::Trojan => "trojan",
+            ProxyType::Vmess => "vmess",
+            ProxyType::Vless => "vless",
+            ProxyType::Tuic => "tuic",
+            ProxyType::Hysteria => "hysteria",
+            ProxyType::Hysteria2 => "hysteria2",
+            ProxyType::Masque => "masque",
+            ProxyType::AnyTls => "anytls",
+            ProxyType::Snell => "snell",
+            ProxyType::Ssh => "ssh",
+            ProxyType::GostRelay => "gost-relay",
+            ProxyType::Mieru => "mieru",
+            ProxyType::Sudoku => "sudoku",
+            ProxyType::WireGuard => "wireguard",
+            ProxyType::Dns => "dns",
+            ProxyType::TrustTunnel => "trusttunnel",
+            ProxyType::OpenVpn => "openvpn",
+            ProxyType::Tailscale => "tailscale",
+            // No serde name (the `#[serde(other)]` catch-all); any unknown
+            // string deserializes to this variant.
+            ProxyType::Unknown => "totally-unknown-future-proto",
+        };
+
+        // A literal-IP server keeps the socks5 outbound (which rejects
+        // hostnames) on its "recognized but maybe invalid" path rather than the
+        // unimplemented fallthrough.
+        let entry = parse(&format!(
+            "name: probe\ntype: {type_name}\nserver: 10.0.0.1\nport: 443\n"
+        ));
+        assert_eq!(entry.kind, kind, "type `{type_name}` mapped to the wrong variant");
+
+        // "Recognized" = `from_proxy` knows the type, even if this minimal entry
+        // is missing protocol-specific fields (that surfaces as a *different*
+        // error, not the "no outbound yet" fallthrough).
+        let recognized = match OutboundMode::from_proxy(&entry) {
+            Ok(_) => true,
+            Err(e) => !e.to_string().contains("no learn-gripe outbound yet"),
+        };
+        let expected = if recognized {
+            ProtocolSupport::Implemented
+        } else {
+            ProtocolSupport::Unsupported
+        };
+        assert_eq!(
+            entry.support(),
+            expected,
+            "support()/from_proxy drift for {kind:?} (recognized={recognized})"
+        );
+    }
 }
 
 /// A full clash `proxies:` array of mixed protocols parses as a batch.
