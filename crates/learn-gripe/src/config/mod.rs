@@ -3,6 +3,7 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use anyhow::{Context, Result, bail};
 
 use crate::config::outbound_opts::{ProxyEntry, ProxyType};
+use crate::outbound::TcpOutbound;
 use crate::protocols::anytls::AnyTlsOutboundConfig;
 use crate::protocols::gost_relay::GostRelayOutboundConfig;
 use crate::protocols::http::HttpOutboundConfig;
@@ -146,27 +147,46 @@ impl OutboundMode {
         match self {
             OutboundMode::Direct | OutboundMode::Reject => Vec::new(),
             OutboundMode::Socks5Upstream { addr } => vec![(addr.ip().to_string(), addr.port())],
-            OutboundMode::Http(c) => vec![(c.server.clone(), c.port)],
-            OutboundMode::Vless(c) => vec![(c.server.clone(), c.port)],
-            OutboundMode::Trojan(c) => vec![(c.server.clone(), c.port)],
-            OutboundMode::Vmess(c) => vec![(c.server.clone(), c.port)],
-            OutboundMode::Shadowsocks(c) => vec![(c.server.clone(), c.port)],
-            OutboundMode::Tuic(c) => vec![(c.server.clone(), c.port)],
-            OutboundMode::Hysteria(c) => vec![(c.server.clone(), c.port)],
-            OutboundMode::Hysteria2(c) => vec![(c.server.clone(), c.port)],
-            OutboundMode::Masque(c) => vec![(c.server.clone(), c.port)],
-            OutboundMode::AnyTls(c) => vec![(c.server.clone(), c.port)],
-            OutboundMode::Snell(c) => vec![(c.server.clone(), c.port)],
-            OutboundMode::Ssh(c) => vec![(c.server.clone(), c.port)],
-            OutboundMode::GostRelay(c) => vec![(c.server.clone(), c.port)],
-            OutboundMode::Mieru(c) => vec![(c.server.clone(), c.port)],
-            OutboundMode::Ssr(c) => vec![(c.server.clone(), c.port)],
-            OutboundMode::Sudoku(c) => vec![(c.server.clone(), c.port)],
-            OutboundMode::WireGuard(c) => vec![(c.server.clone(), c.port)],
             OutboundMode::Routed(router) => router
                 .outbound_modes()
                 .flat_map(OutboundMode::direct_dial_endpoints)
                 .collect(),
+            // Every protocol outbound dials its single fixed upstream.
+            proxy => proxy
+                .as_tcp_outbound()
+                .map(|o| vec![o.dial_endpoint()])
+                .unwrap_or_default(),
+        }
+    }
+
+    /// The protocol [`TcpOutbound`] behind this mode, if any. This is the single
+    /// place that maps an `OutboundMode` variant to its per-protocol behavior;
+    /// the non-protocol variants (`Direct` / `Reject` / `Socks5Upstream` /
+    /// `Routed`) return `None` and are special-cased by callers. The match is
+    /// exhaustive (no wildcard) so a new variant must be classified here.
+    pub(crate) fn as_tcp_outbound(&self) -> Option<&dyn TcpOutbound> {
+        match self {
+            OutboundMode::Http(c) => Some(c.as_ref()),
+            OutboundMode::Vless(c) => Some(c.as_ref()),
+            OutboundMode::Trojan(c) => Some(c.as_ref()),
+            OutboundMode::Vmess(c) => Some(c.as_ref()),
+            OutboundMode::Shadowsocks(c) => Some(c.as_ref()),
+            OutboundMode::Tuic(c) => Some(c.as_ref()),
+            OutboundMode::Hysteria(c) => Some(c.as_ref()),
+            OutboundMode::Hysteria2(c) => Some(c.as_ref()),
+            OutboundMode::Masque(c) => Some(c.as_ref()),
+            OutboundMode::AnyTls(c) => Some(c.as_ref()),
+            OutboundMode::Snell(c) => Some(c.as_ref()),
+            OutboundMode::Ssh(c) => Some(c.as_ref()),
+            OutboundMode::GostRelay(c) => Some(c.as_ref()),
+            OutboundMode::Mieru(c) => Some(c.as_ref()),
+            OutboundMode::Ssr(c) => Some(c.as_ref()),
+            OutboundMode::Sudoku(c) => Some(c.as_ref()),
+            OutboundMode::WireGuard(c) => Some(c.as_ref()),
+            OutboundMode::Direct
+            | OutboundMode::Reject
+            | OutboundMode::Socks5Upstream { .. }
+            | OutboundMode::Routed(_) => None,
         }
     }
 
@@ -177,24 +197,9 @@ impl OutboundMode {
             OutboundMode::Direct => "DIRECT",
             OutboundMode::Reject => "REJECT",
             OutboundMode::Socks5Upstream { .. } => "socks5",
-            OutboundMode::Http(_) => "http",
-            OutboundMode::Vless(_) => "vless",
-            OutboundMode::Trojan(_) => "trojan",
-            OutboundMode::Vmess(_) => "vmess",
-            OutboundMode::Shadowsocks(_) => "shadowsocks",
-            OutboundMode::Tuic(_) => "tuic",
-            OutboundMode::Hysteria(_) => "hysteria",
-            OutboundMode::Hysteria2(_) => "hysteria2",
-            OutboundMode::Masque(_) => "masque",
-            OutboundMode::AnyTls(_) => "anytls",
-            OutboundMode::Snell(_) => "snell",
-            OutboundMode::Ssh(_) => "ssh",
-            OutboundMode::GostRelay(_) => "gost-relay",
-            OutboundMode::Mieru(_) => "mieru",
-            OutboundMode::Ssr(_) => "ssr",
-            OutboundMode::Sudoku(_) => "sudoku",
-            OutboundMode::WireGuard(_) => "wireguard",
             OutboundMode::Routed(_) => "routed",
+            // Protocol variants carry their own label.
+            proxy => proxy.as_tcp_outbound().map_or("unknown", TcpOutbound::type_label),
         }
     }
 
@@ -204,27 +209,16 @@ impl OutboundMode {
     /// modes. `Direct`/`Reject` would loop (arbitrary targets are dialed
     /// directly), and `Routed` may contain a `Direct` path, so both are
     /// excluded; capture stays off and the TUN serves only its on-link subnet.
+    /// The UDP-only proxy outbounds (e.g. MASQUE) cannot carry the captured TCP
+    /// traffic, so they report `false` via [`TcpOutbound::supports_global_capture`].
     pub fn supports_global_capture(&self) -> bool {
-        matches!(
-            self,
-            OutboundMode::Socks5Upstream { .. }
-                | OutboundMode::Http(_)
-                | OutboundMode::Vless(_)
-                | OutboundMode::Trojan(_)
-                | OutboundMode::Vmess(_)
-                | OutboundMode::Shadowsocks(_)
-                | OutboundMode::Tuic(_)
-                | OutboundMode::Hysteria(_)
-                | OutboundMode::Hysteria2(_)
-                | OutboundMode::AnyTls(_)
-                | OutboundMode::Snell(_)
-                | OutboundMode::Ssh(_)
-                | OutboundMode::GostRelay(_)
-                | OutboundMode::Mieru(_)
-                | OutboundMode::Ssr(_)
-                | OutboundMode::Sudoku(_)
-                | OutboundMode::WireGuard(_)
-        )
+        match self {
+            OutboundMode::Socks5Upstream { .. } => true,
+            OutboundMode::Direct | OutboundMode::Reject | OutboundMode::Routed(_) => false,
+            proxy => proxy
+                .as_tcp_outbound()
+                .is_some_and(TcpOutbound::supports_global_capture),
+        }
     }
 }
 
