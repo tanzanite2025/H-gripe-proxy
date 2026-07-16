@@ -16,6 +16,11 @@
 //! to prove the client's control-channel retransmission recovers over a lossy
 //! datagram transport.
 //!
+//! The server also implements independent `tls-auth` (HMAC-SHA1 wrap of every
+//! control packet) and `tls-crypt` (AES-256-CTR + HMAC-SHA256) modes keyed from
+//! a shared "OpenVPN Static key V1", proving the client's static
+//! control-channel protection interoperates in both directions.
+//!
 //! The server crypto/codec is written independently of the crate under test so
 //! the test proves genuine interop rather than that the code agrees with itself.
 
@@ -27,12 +32,15 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::task::{Context as TaskContext, Poll};
 use std::time::{Duration, Instant};
 
+use aes::Aes256;
 use aes_gcm::Aes256Gcm;
 use aes_gcm::aead::{Aead, KeyInit, Payload};
+use ctr::cipher::{KeyIvInit, StreamCipher};
 use hmac::{Hmac, Mac};
 use learn_gripe::{OpenVpnOutboundConfig, ProxyEntry, TargetAddr, openvpn};
 use md5::Md5;
 use sha1::Sha1;
+use sha2::Sha256;
 use smoltcp::iface::{Config as IfaceConfig, Interface, SocketSet};
 use smoltcp::phy::{Device, DeviceCapabilities, Medium, RxToken, TxToken};
 use smoltcp::socket::{tcp, udp};
@@ -72,6 +80,161 @@ const P_DATA_V2: u8 = 9;
 
 fn opcode_of(b: u8) -> u8 {
     b >> OPCODE_SHIFT
+}
+
+// --- server-side tls-auth / tls-crypt (independent copy of the wire format) ----
+
+/// A fixed 2048-bit "OpenVPN Static key V1" shared by client and fake server.
+fn static_key_bytes() -> [u8; 256] {
+    let mut key = [0u8; 256];
+    for (i, b) in key.iter_mut().enumerate() {
+        *b = (i as u8).wrapping_mul(31).wrapping_add(7);
+    }
+    key
+}
+
+/// The same key rendered as the inline file format the client config takes.
+fn static_key_text() -> String {
+    let key = static_key_bytes();
+    let mut body = String::new();
+    for (i, b) in key.iter().enumerate() {
+        body.push_str(&format!("{b:02x}"));
+        if i % 16 == 15 {
+            body.push('\n');
+        }
+    }
+    format!("-----BEGIN OpenVPN Static key V1-----\n{body}-----END OpenVPN Static key V1-----\n")
+}
+
+/// Server-side control-channel protection. The server is `key-direction 0`
+/// (normal): it sends with key slot 0 and receives with slot 1, the mirror of
+/// the client's `key-direction 1`. tls-crypt likewise uses slot 0 to send and
+/// slot 1 to receive on the server.
+#[derive(Clone)]
+enum ServerWrap {
+    None,
+    /// HMAC-SHA1 keys (first 20 bytes of each slot's HMAC half).
+    TlsAuth {
+        send: Vec<u8>,
+        recv: Vec<u8>,
+    },
+    /// AES-256-CTR + HMAC-SHA256 keys (first 32 bytes of each half).
+    TlsCrypt {
+        send_cipher: Vec<u8>,
+        send_hmac: Vec<u8>,
+        recv_cipher: Vec<u8>,
+        recv_hmac: Vec<u8>,
+    },
+}
+
+impl ServerWrap {
+    fn tls_auth() -> Self {
+        let key = static_key_bytes();
+        Self::TlsAuth {
+            send: key[64..84].to_vec(),   // slot 0 HMAC half
+            recv: key[192..212].to_vec(), // slot 1 HMAC half
+        }
+    }
+
+    fn tls_crypt() -> Self {
+        let key = static_key_bytes();
+        Self::TlsCrypt {
+            send_cipher: key[0..32].to_vec(),
+            send_hmac: key[64..96].to_vec(),
+            recv_cipher: key[128..160].to_vec(),
+            recv_hmac: key[192..224].to_vec(),
+        }
+    }
+
+    /// Wrap one plaintext control packet (`op || session || rest`) for the wire.
+    fn wrap(&self, plain: &[u8], packet_id: u32) -> Vec<u8> {
+        let header = &plain[..9];
+        let rest = &plain[9..];
+        let mut replay = [0u8; 8];
+        replay[..4].copy_from_slice(&packet_id.to_be_bytes());
+        replay[4..].copy_from_slice(
+            &(std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs() as u32)
+                .to_be_bytes(),
+        );
+        match self {
+            Self::None => plain.to_vec(),
+            Self::TlsAuth { send, .. } => {
+                let mut mac = <Hmac<Sha1> as Mac>::new_from_slice(send).unwrap();
+                mac.update(&replay);
+                mac.update(header);
+                mac.update(rest);
+                let tag = mac.finalize().into_bytes();
+                let mut out = Vec::new();
+                out.extend_from_slice(header);
+                out.extend_from_slice(&tag);
+                out.extend_from_slice(&replay);
+                out.extend_from_slice(rest);
+                out
+            }
+            Self::TlsCrypt {
+                send_cipher, send_hmac, ..
+            } => {
+                let mut mac = <Hmac<Sha256> as Mac>::new_from_slice(send_hmac).unwrap();
+                mac.update(header);
+                mac.update(&replay);
+                mac.update(rest);
+                let tag = mac.finalize().into_bytes();
+                let mut ct = rest.to_vec();
+                let mut ctr = ctr::Ctr128BE::<Aes256>::new(send_cipher.as_slice().into(), tag[..16].into());
+                ctr.apply_keystream(&mut ct);
+                let mut out = Vec::new();
+                out.extend_from_slice(header);
+                out.extend_from_slice(&replay);
+                out.extend_from_slice(&tag);
+                out.extend_from_slice(&ct);
+                out
+            }
+        }
+    }
+
+    /// Verify/decrypt one wire control packet back into `op || session || rest`.
+    fn unwrap(&self, wire: &[u8]) -> Vec<u8> {
+        match self {
+            Self::None => wire.to_vec(),
+            Self::TlsAuth { recv, .. } => {
+                let header = &wire[..9];
+                let tag = &wire[9..29];
+                let replay = &wire[29..37];
+                let rest = &wire[37..];
+                let mut mac = <Hmac<Sha1> as Mac>::new_from_slice(recv).unwrap();
+                mac.update(replay);
+                mac.update(header);
+                mac.update(rest);
+                mac.verify_slice(tag).expect("client tls-auth HMAC");
+                let mut out = Vec::new();
+                out.extend_from_slice(header);
+                out.extend_from_slice(rest);
+                out
+            }
+            Self::TlsCrypt {
+                recv_cipher, recv_hmac, ..
+            } => {
+                let header = &wire[..9];
+                let replay = &wire[9..17];
+                let tag = &wire[17..49];
+                let mut plain = wire[49..].to_vec();
+                let mut ctr = ctr::Ctr128BE::<Aes256>::new(recv_cipher.as_slice().into(), tag[..16].into());
+                ctr.apply_keystream(&mut plain);
+                let mut mac = <Hmac<Sha256> as Mac>::new_from_slice(recv_hmac).unwrap();
+                mac.update(header);
+                mac.update(replay);
+                mac.update(&plain);
+                mac.verify_slice(tag).expect("client tls-crypt tag");
+                let mut out = Vec::new();
+                out.extend_from_slice(header);
+                out.extend_from_slice(&plain);
+                out
+            }
+        }
+    }
 }
 
 fn opcode_key_id(opcode: u8, key_id: u8) -> u8 {
@@ -493,18 +656,21 @@ fn server_key_method_record(server_r1: &[u8; 32], server_r2: &[u8; 32]) -> Vec<u
 }
 
 /// Serve one fake OpenVPN client connection end to end.
-async fn serve_openvpn(tcp: tokio::net::TcpStream) {
+async fn serve_openvpn(tcp: tokio::net::TcpStream, wrap: ServerWrap) {
     let _ = tcp.set_nodelay(true);
     let (mut read_half, write_half) = tcp.into_split();
     let out = Out::Tcp(Arc::new(Mutex::new(write_half)));
 
-    // Server session id + monotonic control message-id counter.
+    // Server session id + monotonic control message-id counter + monotonic
+    // tls-auth/tls-crypt packet-id counter.
     let mut server_session = [0u8; 8];
     getrandom::fill(&mut server_session).unwrap();
     let send_msg = Arc::new(AtomicU32::new(0));
+    let wrap_pid = Arc::new(AtomicU32::new(1));
 
     // 1. Hard-reset exchange. First framed packet must be the client reset.
     let first = read_one_frame(&mut read_half).await.expect("client hard reset");
+    let first = wrap.unwrap(&first);
     let reset = ControlPacket::decode(&first);
     assert_eq!(
         reset.opcode, P_CONTROL_HARD_RESET_CLIENT_V2,
@@ -520,38 +686,44 @@ async fn serve_openvpn(tcp: tokio::net::TcpStream) {
         message_id: send_msg.fetch_add(1, Ordering::Relaxed),
         payload: Vec::new(),
     };
-    out.send(&server_reset.encode()).await;
+    out.send(&wrap.wrap(&server_reset.encode(), wrap_pid.fetch_add(1, Ordering::Relaxed)))
+        .await;
 
     // 2. Split the inbound packet stream into a control-payload queue (feeding
     //    the server-side TLS) and a data-packet queue.
     let (ctrl_tx, ctrl_rx) = mpsc::unbounded_channel::<Vec<u8>>();
     let (data_tx, mut data_rx) = mpsc::unbounded_channel::<Vec<u8>>();
-    tokio::spawn(async move {
-        loop {
-            let Some(packet) = read_one_frame(&mut read_half).await else {
-                return;
-            };
-            match opcode_of(packet[0]) {
-                P_CONTROL_V1 => {
-                    let ctrl = ControlPacket::decode(&packet);
-                    if !ctrl.payload.is_empty() {
-                        let _ = ctrl_tx.send(ctrl.payload);
+    {
+        let wrap = wrap.clone();
+        tokio::spawn(async move {
+            loop {
+                let Some(packet) = read_one_frame(&mut read_half).await else {
+                    return;
+                };
+                match opcode_of(packet[0]) {
+                    P_CONTROL_V1 => {
+                        let ctrl = ControlPacket::decode(&wrap.unwrap(&packet));
+                        if !ctrl.payload.is_empty() {
+                            let _ = ctrl_tx.send(ctrl.payload);
+                        }
                     }
+                    P_ACK_V1 => {}
+                    P_DATA_V2 => {
+                        let _ = data_tx.send(packet);
+                    }
+                    _ => {}
                 }
-                P_ACK_V1 => {}
-                P_DATA_V2 => {
-                    let _ = data_tx.send(packet);
-                }
-                _ => {}
             }
-        }
-    });
+        });
+    }
 
     // Outbound control sender: each TLS write becomes a P_CONTROL_V1 message.
     let (out_tx, mut out_rx) = mpsc::unbounded_channel::<Vec<u8>>();
     {
         let out = out.clone();
         let send_msg = send_msg.clone();
+        let wrap = wrap.clone();
+        let wrap_pid = wrap_pid.clone();
         tokio::spawn(async move {
             while let Some(bytes) = out_rx.recv().await {
                 let packet = ControlPacket {
@@ -562,7 +734,8 @@ async fn serve_openvpn(tcp: tokio::net::TcpStream) {
                     message_id: send_msg.fetch_add(1, Ordering::Relaxed),
                     payload: bytes,
                 };
-                out.send(&packet.encode()).await;
+                out.send(&wrap.wrap(&packet.encode(), wrap_pid.fetch_add(1, Ordering::Relaxed)))
+                    .await;
             }
         });
     }
@@ -624,7 +797,7 @@ async fn serve_openvpn(tcp: tokio::net::TcpStream) {
 /// control packets (so the client's retransmit timer stops) and, when
 /// `drop_first_reset` is set, ignores the client's first hard reset to force a
 /// retransmit.
-async fn serve_openvpn_udp(socket: Arc<UdpSocket>, drop_first_reset: bool) {
+async fn serve_openvpn_udp(socket: Arc<UdpSocket>, drop_first_reset: bool, wrap: ServerWrap) {
     let mut buf = vec![0u8; 65535];
 
     // Learn the client's address from its first datagram, then connect so we
@@ -635,7 +808,8 @@ async fn serve_openvpn_udp(socket: Arc<UdpSocket>, drop_first_reset: bool) {
         // Ignore the first hard reset; the client must retransmit it.
         n = socket.recv(&mut buf).await.expect("retransmitted client hard reset");
     }
-    let reset = ControlPacket::decode(&buf[..n]);
+    let first = wrap.unwrap(&buf[..n]);
+    let reset = ControlPacket::decode(&first);
     assert_eq!(
         reset.opcode, P_CONTROL_HARD_RESET_CLIENT_V2,
         "first packet is client reset"
@@ -645,6 +819,7 @@ async fn serve_openvpn_udp(socket: Arc<UdpSocket>, drop_first_reset: bool) {
     let mut server_session = [0u8; 8];
     getrandom::fill(&mut server_session).unwrap();
     let send_msg = Arc::new(AtomicU32::new(0));
+    let wrap_pid = Arc::new(AtomicU32::new(1));
     let out = Out::Udp(socket.clone());
 
     let server_reset = ControlPacket {
@@ -655,7 +830,8 @@ async fn serve_openvpn_udp(socket: Arc<UdpSocket>, drop_first_reset: bool) {
         message_id: send_msg.fetch_add(1, Ordering::Relaxed),
         payload: Vec::new(),
     };
-    out.send(&server_reset.encode()).await;
+    out.send(&wrap.wrap(&server_reset.encode(), wrap_pid.fetch_add(1, Ordering::Relaxed)))
+        .await;
 
     // Inbound datagram reader: dispatch control payloads (feeding server TLS)
     // and data packets, acking each reliable client control packet and
@@ -665,6 +841,8 @@ async fn serve_openvpn_udp(socket: Arc<UdpSocket>, drop_first_reset: bool) {
     {
         let socket = socket.clone();
         let out = out.clone();
+        let wrap = wrap.clone();
+        let wrap_pid = wrap_pid.clone();
         tokio::spawn(async move {
             let mut buf = vec![0u8; 65535];
             let mut forwarded: HashSet<u32> = HashSet::new();
@@ -678,7 +856,7 @@ async fn serve_openvpn_udp(socket: Arc<UdpSocket>, drop_first_reset: bool) {
                 }
                 match opcode_of(buf[0]) {
                     P_CONTROL_V1 => {
-                        let ctrl = ControlPacket::decode(&buf[..n]);
+                        let ctrl = ControlPacket::decode(&wrap.unwrap(&buf[..n]));
                         let ack = ControlPacket {
                             opcode: P_ACK_V1,
                             local_session: server_session,
@@ -687,14 +865,15 @@ async fn serve_openvpn_udp(socket: Arc<UdpSocket>, drop_first_reset: bool) {
                             message_id: 0,
                             payload: Vec::new(),
                         };
-                        out.send(&ack.encode()).await;
+                        out.send(&wrap.wrap(&ack.encode(), wrap_pid.fetch_add(1, Ordering::Relaxed)))
+                            .await;
                         if !ctrl.payload.is_empty() && forwarded.insert(ctrl.message_id) {
                             let _ = ctrl_tx.send(ctrl.payload);
                         }
                     }
                     P_CONTROL_HARD_RESET_CLIENT_V2 => {
                         // A retransmitted hard reset: re-ack it.
-                        let ctrl = ControlPacket::decode(&buf[..n]);
+                        let ctrl = ControlPacket::decode(&wrap.unwrap(&buf[..n]));
                         let ack = ControlPacket {
                             opcode: P_ACK_V1,
                             local_session: server_session,
@@ -703,7 +882,8 @@ async fn serve_openvpn_udp(socket: Arc<UdpSocket>, drop_first_reset: bool) {
                             message_id: 0,
                             payload: Vec::new(),
                         };
-                        out.send(&ack.encode()).await;
+                        out.send(&wrap.wrap(&ack.encode(), wrap_pid.fetch_add(1, Ordering::Relaxed)))
+                            .await;
                     }
                     P_ACK_V1 => {}
                     P_DATA_V2 => {
@@ -720,6 +900,8 @@ async fn serve_openvpn_udp(socket: Arc<UdpSocket>, drop_first_reset: bool) {
     {
         let out = out.clone();
         let send_msg = send_msg.clone();
+        let wrap = wrap.clone();
+        let wrap_pid = wrap_pid.clone();
         tokio::spawn(async move {
             while let Some(bytes) = out_rx.recv().await {
                 let packet = ControlPacket {
@@ -730,7 +912,8 @@ async fn serve_openvpn_udp(socket: Arc<UdpSocket>, drop_first_reset: bool) {
                     message_id: send_msg.fetch_add(1, Ordering::Relaxed),
                     payload: bytes,
                 };
-                out.send(&packet.encode()).await;
+                out.send(&wrap.wrap(&packet.encode(), wrap_pid.fetch_add(1, Ordering::Relaxed)))
+                    .await;
             }
         });
     }
@@ -889,24 +1072,31 @@ async fn run_data_plane(keys: ServerKeys, out: Out, data_rx: &mut mpsc::Unbounde
 // --- test harness -------------------------------------------------------------
 
 /// Stand up a fake server on an ephemeral port and return a parsed client config
-/// pointing at it (username/password auth, AES-256-GCM, inline CA).
-async fn start_server() -> OpenVpnOutboundConfig {
+/// pointing at it (username/password auth, AES-256-GCM, inline CA). `wrap`
+/// selects the server's control-channel protection; `extra_yaml` appends the
+/// matching client config lines.
+async fn start_server_with(wrap: ServerWrap, extra_yaml: &str) -> OpenVpnOutboundConfig {
     let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
     let addr = listener.local_addr().unwrap();
     tokio::spawn(async move {
         while let Ok((tcp, _)) = listener.accept().await {
-            tokio::spawn(serve_openvpn(tcp));
+            tokio::spawn(serve_openvpn(tcp, wrap.clone()));
         }
     });
 
     let ca = TEST_CA.replace('\n', "\\n");
     let yaml = format!(
-        "name: o\ntype: openvpn\nserver: 127.0.0.1\nport: {}\nproto: tcp\nusername: u\npassword: p\ncipher: AES-256-GCM\nca: \"{}\"\n",
+        "name: o\ntype: openvpn\nserver: 127.0.0.1\nport: {}\nproto: tcp\nusername: u\npassword: p\ncipher: AES-256-GCM\nca: \"{}\"\n{}",
         addr.port(),
         ca,
+        extra_yaml,
     );
     let entry: ProxyEntry = serde_yaml_ng::from_str(&yaml).unwrap();
     OpenVpnOutboundConfig::from_proxy(&entry).unwrap()
+}
+
+async fn start_server() -> OpenVpnOutboundConfig {
+    start_server_with(ServerWrap::None, "").await
 }
 
 #[tokio::test]
@@ -956,16 +1146,21 @@ async fn openvpn_tcp_round_trips_a_large_payload() {
 /// config (`proto udp`) pointing at it. `drop_first_reset` makes the server
 /// ignore the client's first hard reset to exercise control retransmission.
 async fn start_udp_server(drop_first_reset: bool) -> OpenVpnOutboundConfig {
+    start_udp_server_with(drop_first_reset, ServerWrap::None, "").await
+}
+
+async fn start_udp_server_with(drop_first_reset: bool, wrap: ServerWrap, extra_yaml: &str) -> OpenVpnOutboundConfig {
     let socket = UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
     let addr = socket.local_addr().unwrap();
     let socket = Arc::new(socket);
-    tokio::spawn(serve_openvpn_udp(socket, drop_first_reset));
+    tokio::spawn(serve_openvpn_udp(socket, drop_first_reset, wrap));
 
     let ca = TEST_CA.replace('\n', "\\n");
     let yaml = format!(
-        "name: o\ntype: openvpn\nserver: 127.0.0.1\nport: {}\nproto: udp\nusername: u\npassword: p\ncipher: AES-256-GCM\nca: \"{}\"\n",
+        "name: o\ntype: openvpn\nserver: 127.0.0.1\nport: {}\nproto: udp\nusername: u\npassword: p\ncipher: AES-256-GCM\nca: \"{}\"\n{}",
         addr.port(),
         ca,
+        extra_yaml,
     );
     let entry: ProxyEntry = serde_yaml_ng::from_str(&yaml).unwrap();
     OpenVpnOutboundConfig::from_proxy(&entry).unwrap()
@@ -1028,6 +1223,90 @@ async fn openvpn_udp_transport_relays_inner_udp_datagrams() {
         .expect("recv did not time out")
         .expect("udp recv");
     assert_eq!(got, payload);
+}
+
+#[tokio::test]
+async fn openvpn_tcp_round_trips_with_tls_auth() {
+    // Client `tls-auth` + `key-direction 1` against a server that verifies and
+    // HMAC-wraps every control packet with the mirrored key direction.
+    let key = static_key_text().replace('\n', "\\n");
+    let extra = format!("tls-auth: \"{key}\"\nkey-direction: 1\n");
+    let config = start_server_with(ServerWrap::tls_auth(), &extra).await;
+    let target = TargetAddr::Ip(SocketAddr::new(IpAddr::V4(INNER_IP), INNER_PORT));
+
+    let mut stream = tokio::time::timeout(Duration::from_secs(20), openvpn::connect(&config, &target))
+        .await
+        .expect("connect did not time out")
+        .expect("openvpn connect");
+
+    let payload = b"hello tls-auth tunnel";
+    stream.write_all(payload).await.unwrap();
+
+    let mut got = vec![0u8; payload.len()];
+    stream.read_exact(&mut got).await.unwrap();
+    assert_eq!(&got, payload);
+}
+
+#[tokio::test]
+async fn openvpn_udp_round_trips_with_tls_crypt() {
+    // Client `tls-crypt` over the UDP transport against a server that encrypts
+    // + authenticates every control packet with the mirrored key slots.
+    let key = static_key_text().replace('\n', "\\n");
+    let extra = format!("tls-crypt: \"{key}\"\n");
+    let config = start_udp_server_with(false, ServerWrap::tls_crypt(), &extra).await;
+    let target = TargetAddr::Ip(SocketAddr::new(IpAddr::V4(INNER_IP), INNER_PORT));
+
+    let mut stream = tokio::time::timeout(Duration::from_secs(20), openvpn::connect(&config, &target))
+        .await
+        .expect("connect did not time out")
+        .expect("openvpn connect");
+
+    let payload = b"hello tls-crypt tunnel";
+    stream.write_all(payload).await.unwrap();
+
+    let mut got = vec![0u8; payload.len()];
+    stream.read_exact(&mut got).await.unwrap();
+    assert_eq!(&got, payload);
+}
+
+#[tokio::test]
+async fn openvpn_tcp_round_trips_with_tls_crypt() {
+    let key = static_key_text().replace('\n', "\\n");
+    let extra = format!("tls-crypt: \"{key}\"\n");
+    let config = start_server_with(ServerWrap::tls_crypt(), &extra).await;
+    let target = TargetAddr::Ip(SocketAddr::new(IpAddr::V4(INNER_IP), INNER_PORT));
+
+    let mut stream = tokio::time::timeout(Duration::from_secs(20), openvpn::connect(&config, &target))
+        .await
+        .expect("connect did not time out")
+        .expect("openvpn connect");
+
+    let payload = b"tls-crypt over tcp";
+    stream.write_all(payload).await.unwrap();
+
+    let mut got = vec![0u8; payload.len()];
+    stream.read_exact(&mut got).await.unwrap();
+    assert_eq!(&got, payload);
+}
+
+#[tokio::test]
+async fn openvpn_udp_round_trips_with_tls_auth() {
+    let key = static_key_text().replace('\n', "\\n");
+    let extra = format!("tls-auth: \"{key}\"\nkey-direction: 1\n");
+    let config = start_udp_server_with(false, ServerWrap::tls_auth(), &extra).await;
+    let target = TargetAddr::Ip(SocketAddr::new(IpAddr::V4(INNER_IP), INNER_PORT));
+
+    let mut stream = tokio::time::timeout(Duration::from_secs(20), openvpn::connect(&config, &target))
+        .await
+        .expect("connect did not time out")
+        .expect("openvpn connect");
+
+    let payload = b"tls-auth over udp";
+    stream.write_all(payload).await.unwrap();
+
+    let mut got = vec![0u8; payload.len()];
+    stream.read_exact(&mut got).await.unwrap();
+    assert_eq!(&got, payload);
 }
 
 #[tokio::test]

@@ -26,10 +26,13 @@
 //!   resolver).
 //! - Server certificate pinned to the inline `ca`; optional client-certificate
 //!   (`cert`/`key`) and/or username/password auth.
-//! - No `tls-auth` / `tls-crypt` control-channel wrapping, no compression, no
-//!   keepalive ping generation. Those are rejected or documented as absent, and
-//!   any unsupported option combination fails explicitly rather than silently
-//!   degrading.
+//! - **`tls-auth` / `tls-crypt` control-channel protection** from an inline
+//!   "OpenVPN Static key V1" (mutually exclusive): `tls-auth` HMAC-wraps every
+//!   control packet (`auth` digest SHA1/SHA256/SHA512, `key-direction` 0/1 or
+//!   bidirectional); `tls-crypt` encrypts + authenticates them (AES-256-CTR +
+//!   HMAC-SHA256, fixed client direction). See [`tlswrap`].
+//! - No compression and no keepalive ping generation. Unsupported option
+//!   combinations fail explicitly rather than silently degrading.
 
 mod control;
 mod data;
@@ -41,6 +44,7 @@ mod packet;
 mod push;
 mod stream;
 mod tls;
+mod tlswrap;
 
 use std::net::SocketAddr;
 
@@ -74,6 +78,14 @@ pub struct OpenVpnOutboundConfig {
     password: Option<String>,
     /// Normalized AEAD cipher name (e.g. `AES-256-GCM`).
     cipher: String,
+    /// Inline `tls-auth` static key (mutually exclusive with `tls_crypt`).
+    tls_auth: Option<String>,
+    /// Inline `tls-crypt` static key (mutually exclusive with `tls_auth`).
+    tls_crypt: Option<String>,
+    /// `key-direction` for `tls-auth` (`None` = bidirectional).
+    key_direction: Option<u8>,
+    /// Normalized `auth` digest name for the `tls-auth` HMAC (default SHA1).
+    auth_digest: String,
     /// Whether the tunnel transport is UDP (`true`) or TCP (`false`).
     udp: bool,
     mtu: u32,
@@ -117,13 +129,27 @@ impl OpenVpnOutboundConfig {
             }
         }
 
-        // Static control-channel protection is not implemented.
-        if opts.tls_crypt.as_deref().is_some_and(|v| !v.trim().is_empty()) {
-            bail!("openvpn: `tls-crypt` is not supported");
+        // Static control-channel protection: tls-auth XOR tls-crypt, each an
+        // inline "OpenVPN Static key V1" that must parse at config time.
+        let tls_auth = opts.tls_auth.as_deref().map(str::trim).filter(|s| !s.is_empty());
+        let tls_crypt = opts.tls_crypt.as_deref().map(str::trim).filter(|s| !s.is_empty());
+        if tls_auth.is_some() && tls_crypt.is_some() {
+            bail!("openvpn: `tls-auth` and `tls-crypt` are mutually exclusive");
         }
-        if opts.tls_auth.as_deref().is_some_and(|v| !v.trim().is_empty()) {
-            bail!("openvpn: `tls-auth` is not supported");
+        if let Some(key) = tls_auth.or(tls_crypt) {
+            tlswrap::parse_static_key(key)?;
         }
+        let key_direction = opts.key_direction;
+        tlswrap::KeyDirection::from_option(key_direction)?;
+        if key_direction.is_some() && tls_auth.is_none() {
+            bail!("openvpn: `key-direction` requires `tls-auth` (tls-crypt has a fixed direction)");
+        }
+        // `auth` names the tls-auth HMAC digest (the data channel is AEAD-only,
+        // where the digest is unused beyond the options string).
+        let auth_digest = match opts.auth.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+            Some(name) => tlswrap::AuthDigest::parse(name)?.name().to_string(),
+            None => "SHA1".to_string(),
+        };
 
         // The server cert is always pinned to the inline CA; verification
         // cannot be turned off for this outbound.
@@ -166,6 +192,10 @@ impl OpenVpnOutboundConfig {
             username,
             password,
             cipher,
+            tls_auth: tls_auth.map(str::to_string),
+            tls_crypt: tls_crypt.map(str::to_string),
+            key_direction,
+            auth_digest,
             udp,
             mtu,
         })
@@ -184,6 +214,13 @@ impl OpenVpnOutboundConfig {
         cred.update(self.client_key_pem.as_deref().unwrap_or_default().as_bytes());
         cred.update(&[0]);
         cred.update(self.password.as_deref().unwrap_or_default().as_bytes());
+        cred.update(&[0]);
+        cred.update(self.tls_auth.as_deref().unwrap_or_default().as_bytes());
+        cred.update(&[0]);
+        cred.update(self.tls_crypt.as_deref().unwrap_or_default().as_bytes());
+        cred.update(&[0]);
+        cred.update(&[self.key_direction.map_or(0xff, |d| d)]);
+        cred.update(self.auth_digest.as_bytes());
         let cred_tag = cred.finalize();
         let proto = if self.udp { "udp" } else { "tcp" };
         format!(
@@ -193,6 +230,20 @@ impl OpenVpnOutboundConfig {
             self.cipher,
             self.username.as_deref().unwrap_or_default()
         )
+    }
+
+    /// Build the configured control-channel wrap (`tls-auth` / `tls-crypt`),
+    /// or `None` when the control channel runs in cleartext.
+    fn control_wrap(&self) -> Result<Option<tlswrap::ControlWrap>> {
+        if let Some(key) = self.tls_crypt.as_deref() {
+            return Ok(Some(tlswrap::ControlWrap::tls_crypt(key)?));
+        }
+        if let Some(key) = self.tls_auth.as_deref() {
+            let direction = tlswrap::KeyDirection::from_option(self.key_direction)?;
+            let digest = tlswrap::AuthDigest::parse(&self.auth_digest)?;
+            return Ok(Some(tlswrap::ControlWrap::tls_auth(key, direction, digest)?));
+        }
+        Ok(None)
     }
 }
 
@@ -307,14 +358,51 @@ mod tests {
         assert!(err.to_string().contains("cipher"), "{err}");
     }
 
+    fn static_key() -> String {
+        let body: String = (0..256).map(|i| format!("{:02x}", i as u8)).collect();
+        format!("-----BEGIN OpenVPN Static key V1-----\\n{body}\\n-----END OpenVPN Static key V1-----\\n")
+    }
+
     #[test]
-    fn rejects_tls_crypt() {
-        let err = OpenVpnOutboundConfig::from_proxy(&entry(&format!(
-            "name: o\ntype: openvpn\nserver: vpn.example\nport: 1194\nusername: u\npassword: p\nca: \"{}\"\ntls-crypt: \"secret\"\n",
+    fn accepts_tls_auth_and_tls_crypt_but_not_both() {
+        let base = format!(
+            "name: o\ntype: openvpn\nserver: vpn.example\nport: 1194\nusername: u\npassword: p\nca: \"{}\"\n",
             CA.replace('\n', "\\n")
-        )))
-        .unwrap_err();
-        assert!(err.to_string().contains("tls-crypt"), "{err}");
+        );
+        let key = static_key();
+
+        let cfg = OpenVpnOutboundConfig::from_proxy(&entry(&format!("{base}tls-auth: \"{key}\"\nkey-direction: 1\n")))
+            .unwrap();
+        assert!(cfg.tls_auth.is_some());
+        assert_eq!(cfg.key_direction, Some(1));
+        assert!(cfg.control_wrap().unwrap().is_some());
+
+        let cfg = OpenVpnOutboundConfig::from_proxy(&entry(&format!("{base}tls-crypt: \"{key}\"\n"))).unwrap();
+        assert!(cfg.tls_crypt.is_some());
+        assert!(cfg.control_wrap().unwrap().is_some());
+
+        let err =
+            OpenVpnOutboundConfig::from_proxy(&entry(&format!("{base}tls-auth: \"{key}\"\ntls-crypt: \"{key}\"\n")))
+                .unwrap_err();
+        assert!(err.to_string().contains("mutually exclusive"), "{err}");
+    }
+
+    #[test]
+    fn rejects_malformed_static_key_and_stray_key_direction() {
+        let base = format!(
+            "name: o\ntype: openvpn\nserver: vpn.example\nport: 1194\nusername: u\npassword: p\nca: \"{}\"\n",
+            CA.replace('\n', "\\n")
+        );
+        let err = OpenVpnOutboundConfig::from_proxy(&entry(&format!("{base}tls-crypt: \"secret\"\n"))).unwrap_err();
+        assert!(err.to_string().contains("Static key"), "{err}");
+
+        let err = OpenVpnOutboundConfig::from_proxy(&entry(&format!("{base}key-direction: 1\n"))).unwrap_err();
+        assert!(err.to_string().contains("key-direction"), "{err}");
+
+        let key = static_key();
+        let err =
+            OpenVpnOutboundConfig::from_proxy(&entry(&format!("{base}tls-auth: \"{key}\"\nauth: MD5\n"))).unwrap_err();
+        assert!(err.to_string().contains("auth"), "{err}");
     }
 
     #[test]

@@ -273,7 +273,7 @@ pub struct ProxyOptions {
     // OpenVPN outbound (`type: openvpn`). `username`/`password` (above) carry
     // the optional auth-user-pass credentials; `key` (above) the optional client
     // private key. The rest are OpenVPN-specific.
-    /// Transport protocol (`proto`): `tcp` / `udp`. Only TCP is implemented.
+    /// Transport protocol (`proto`): `tcp` / `udp`.
     pub proto: Option<String>,
     /// Tunnel device type (`dev`): `tun` / `tap`. Only tun is implemented.
     pub dev: Option<String>,
@@ -285,12 +285,17 @@ pub struct ProxyOptions {
     /// accepted (compression is not implemented).
     #[serde(rename = "comp-lzo")]
     pub comp_lzo: Option<String>,
-    /// Static control-channel protection key (`tls-crypt`); not supported.
+    /// Inline "OpenVPN Static key V1" for `tls-crypt` control-channel
+    /// encryption + authentication (mutually exclusive with `tls-auth`).
     #[serde(rename = "tls-crypt")]
     pub tls_crypt: Option<String>,
-    /// Static control-channel HMAC key (`tls-auth`); not supported.
+    /// Inline "OpenVPN Static key V1" for `tls-auth` control-channel HMAC
+    /// authentication (mutually exclusive with `tls-crypt`).
     #[serde(rename = "tls-auth")]
     pub tls_auth: Option<String>,
+    /// `key-direction` for `tls-auth` (`0` / `1`; absent = bidirectional).
+    #[serde(rename = "key-direction")]
+    pub key_direction: Option<u8>,
 
     // Transport selection + typed option blocks.
     pub network: Option<Network>,
@@ -364,6 +369,8 @@ pub struct ProxyOptions {
     #[serde(rename = "down-speed")]
     pub down_speed: Option<u64>,
     /// Hysteria v1 authentication: literal `auth-str` or base64 `auth`.
+    /// For OpenVPN (`type: openvpn`) `auth` is instead the control-channel
+    /// HMAC digest name for `tls-auth` (SHA1 default).
     #[serde(rename = "auth-str")]
     pub auth_str: Option<String>,
     pub auth: Option<String>,
