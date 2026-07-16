@@ -23,7 +23,7 @@ use super::keymethod::{
 };
 use super::packet::{P_CONTROL_HARD_RESET_SERVER_V2, new_session_id};
 use super::push::{PUSH_REQUEST, PushReply, parse_push_reply};
-use super::stream::OvpnTcpStream;
+use super::stream::{OvpnTcpStream, OvpnUdpAssoc};
 use super::tls;
 
 /// How long the handshake waits for a control-channel reply on UDP before
@@ -43,6 +43,10 @@ pub(super) enum Command {
     OpenTcp {
         dst: SocketAddr,
         reply: oneshot::Sender<OvpnTcpStream>,
+    },
+    OpenUdp {
+        dst: SocketAddr,
+        reply: oneshot::Sender<OvpnUdpAssoc>,
     },
 }
 
@@ -195,6 +199,17 @@ impl OpenVpnDevice {
         reply_rx
             .await
             .map_err(|_| anyhow!("openvpn: connection to {dst} failed (connect timeout)"))
+    }
+
+    pub(super) async fn open_udp(&self, dst: SocketAddr) -> Result<OvpnUdpAssoc> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.commands
+            .send(Command::OpenUdp { dst, reply: reply_tx })
+            .await
+            .map_err(|_| anyhow!("openvpn: device loop is gone"))?;
+        reply_rx
+            .await
+            .map_err(|_| anyhow!("openvpn: UDP association to {dst} failed"))
     }
 }
 

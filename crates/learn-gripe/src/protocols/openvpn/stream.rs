@@ -1,10 +1,12 @@
-//! Caller-facing relayed TCP stream over the OpenVPN tunnel: channel-backed
-//! `AsyncRead`/`AsyncWrite` bridged to a smoltcp socket inside the device loop.
+//! Caller-facing relayed TCP stream and UDP association over the OpenVPN
+//! tunnel: channel-backed endpoints bridged to smoltcp sockets inside the
+//! device loop.
 
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context as TaskContext, Poll};
 
+use anyhow::{Result, anyhow, bail};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tokio::sync::{Notify, mpsc};
 
@@ -82,5 +84,39 @@ impl AsyncWrite for OvpnTcpStream {
             this.wake.notify_one();
         }
         Poll::Ready(Ok(()))
+    }
+}
+
+/// A relayed UDP association over the tunnel: a channel pair bridged to a
+/// smoltcp UDP socket inside the device loop, sending to one fixed destination.
+/// `send`/`recv` mirror the other protocols' UDP associations so the shared UDP
+/// egress loop can drive it.
+pub struct OvpnUdpAssoc {
+    /// Caller -> loop datagrams.
+    pub(super) write_tx: mpsc::Sender<Vec<u8>>,
+    /// Loop -> caller datagrams.
+    pub(super) read_rx: tokio::sync::Mutex<mpsc::Receiver<Vec<u8>>>,
+    pub(super) wake: Arc<Notify>,
+}
+
+impl OvpnUdpAssoc {
+    /// Queue `payload` as one datagram to the association's destination. A full
+    /// queue drops the datagram (UDP is lossy) rather than blocking the relay.
+    pub async fn send(&self, payload: &[u8]) -> Result<()> {
+        match self.write_tx.try_send(payload.to_vec()) {
+            Ok(()) | Err(mpsc::error::TrySendError::Full(_)) => {
+                self.wake.notify_one();
+                Ok(())
+            }
+            Err(mpsc::error::TrySendError::Closed(_)) => bail!("openvpn udp: device loop is gone"),
+        }
+    }
+
+    /// Receive the next reply datagram from the destination.
+    pub async fn recv(&self) -> Result<Vec<u8>> {
+        let mut rx = self.read_rx.lock().await;
+        rx.recv()
+            .await
+            .ok_or_else(|| anyhow!("openvpn udp: device loop closed"))
     }
 }

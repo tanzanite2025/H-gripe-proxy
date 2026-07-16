@@ -196,6 +196,9 @@ pub enum UdpEgress {
     /// WireGuard relays each datagram through a userspace smoltcp UDP socket
     /// whose IP packets ride the Noise tunnel (no proxy stream).
     WireGuard(Box<WireGuardOutboundConfig>),
+    /// OpenVPN relays each datagram through a userspace smoltcp UDP socket
+    /// whose IP packets are sealed into the `P_DATA_V2` AEAD data channel.
+    OpenVpn(Box<OpenVpnOutboundConfig>),
 }
 
 /// Whether `mode` can serve a SOCKS5 `UDP ASSOCIATE`. `Routed` resolves per
@@ -240,21 +243,20 @@ fn udp_egress_for(mode: &OutboundMode) -> Option<UdpEgress> {
         OutboundMode::TrustTunnel(config) if config.udp => Some(UdpEgress::TrustTunnel(config.clone())),
         OutboundMode::TrustTunnel(_) => None,
         OutboundMode::WireGuard(config) => Some(UdpEgress::WireGuard(config.clone())),
+        OutboundMode::OpenVpn(config) => Some(UdpEgress::OpenVpn(config.clone())),
         // `Routed` is resolved per datagram by `resolve_udp_egress` before it
         // reaches here; it has no egress of its own.
         OutboundMode::Routed(_) => None,
         // No UDP relay path: `Reject` blocks the datagram; an upstream
         // SOCKS5/HTTP proxy has none here; SSH / GOST relay / mieru are
-        // TCP-only; Hysteria v1 here carries TCP only (no UDP relay yet);
-        // OpenVPN's data plane relays TCP only in this slice. Their
-        // associations are refused rather than leaked.
+        // TCP-only; Hysteria v1 here carries TCP only (no UDP relay yet).
+        // Their associations are refused rather than leaked.
         OutboundMode::Reject
         | OutboundMode::Socks5Upstream { .. }
         | OutboundMode::Http(_)
         | OutboundMode::Ssh(_)
         | OutboundMode::GostRelay(_)
         | OutboundMode::Mieru(_)
-        | OutboundMode::OpenVpn(_)
         | OutboundMode::Hysteria(_) => None,
     }
 }
@@ -295,7 +297,8 @@ pub async fn connect_proxy_udp(egress: &UdpEgress, target: &TargetAddr) -> Resul
         | UdpEgress::Hysteria2(_)
         | UdpEgress::Masque(_)
         | UdpEgress::Tuic(_)
-        | UdpEgress::WireGuard(_) => {
+        | UdpEgress::WireGuard(_)
+        | UdpEgress::OpenVpn(_) => {
             bail!("egress has no proxy tunnel")
         }
     }
