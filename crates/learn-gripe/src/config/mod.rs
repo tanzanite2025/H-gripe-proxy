@@ -17,6 +17,7 @@ use crate::protocols::ssh::SshOutboundConfig;
 use crate::protocols::ssr::SsrOutboundConfig;
 use crate::protocols::sudoku::SudokuOutboundConfig;
 use crate::protocols::trojan::TrojanOutboundConfig;
+use crate::protocols::trusttunnel::TrustTunnelOutboundConfig;
 use crate::protocols::tuic::TuicOutboundConfig;
 use crate::protocols::vless::VlessOutboundConfig;
 use crate::protocols::vmess::VmessOutboundConfig;
@@ -76,6 +77,8 @@ pub enum OutboundMode {
     Ssr(Box<SsrOutboundConfig>),
     /// Forward through a Sudoku outbound (TCP-only obfuscated tunnel).
     Sudoku(Box<SudokuOutboundConfig>),
+    /// Forward through a TrustTunnel outbound (HTTP/2 CONNECT tunnel; TCP + UDP).
+    TrustTunnel(Box<TrustTunnelOutboundConfig>),
     /// Forward through a WireGuard outbound (L3 tunnel + userspace netstack).
     WireGuard(Box<WireGuardOutboundConfig>),
     /// Select the outbound per connection from a rule list.
@@ -127,6 +130,9 @@ impl OutboundMode {
             ProxyType::Mieru => Ok(OutboundMode::Mieru(Box::new(MieruOutboundConfig::from_proxy(entry)?))),
             ProxyType::ShadowsocksR => Ok(OutboundMode::Ssr(Box::new(SsrOutboundConfig::from_proxy(entry)?))),
             ProxyType::Sudoku => Ok(OutboundMode::Sudoku(Box::new(SudokuOutboundConfig::from_proxy(entry)?))),
+            ProxyType::TrustTunnel => Ok(OutboundMode::TrustTunnel(Box::new(
+                TrustTunnelOutboundConfig::from_proxy(entry)?,
+            ))),
             ProxyType::WireGuard => Ok(OutboundMode::WireGuard(Box::new(WireGuardOutboundConfig::from_proxy(
                 entry,
             )?))),
@@ -182,6 +188,7 @@ impl OutboundMode {
             OutboundMode::Mieru(c) => Some(c.as_ref()),
             OutboundMode::Ssr(c) => Some(c.as_ref()),
             OutboundMode::Sudoku(c) => Some(c.as_ref()),
+            OutboundMode::TrustTunnel(c) => Some(c.as_ref()),
             OutboundMode::WireGuard(c) => Some(c.as_ref()),
             OutboundMode::Direct
             | OutboundMode::Reject
@@ -307,8 +314,17 @@ mod tests {
 
     #[test]
     fn unimplemented_protocol_is_rejected() {
-        let err = OutboundMode::from_proxy(&entry("name: m\ntype: trusttunnel\nserver: a\nport: 1\n")).unwrap_err();
+        let err = OutboundMode::from_proxy(&entry("name: m\ntype: openvpn\nserver: a\nport: 1\n")).unwrap_err();
         assert!(err.to_string().contains("no learn-gripe outbound"), "{err}");
+    }
+
+    #[test]
+    fn trusttunnel_entry_maps_to_trusttunnel_outbound() {
+        let m = mode("name: t\ntype: trusttunnel\nserver: proxy.example\nport: 443\n");
+        assert!(matches!(m, OutboundMode::TrustTunnel(_)));
+        assert_eq!(m.type_label(), "trusttunnel");
+        assert_eq!(m.direct_dial_endpoints(), vec![("proxy.example".to_string(), 443)]);
+        assert!(m.supports_global_capture());
     }
 
     #[test]
