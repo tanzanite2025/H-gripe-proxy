@@ -19,12 +19,13 @@
 //! it; the obfuscation layer then expands every record byte into hint bytes
 //! before they reach the socket. Reads run the same stack in reverse.
 //!
-//! ## Scope (TCP-only baseline)
+//! ## Scope (TCP baseline + UDP-over-TCP)
 //!
 //! This module implements the common single-table, pure-uplink / pure-downlink
-//! TCP case: HTTP masking disabled, the 6-bit *packed* downlink, multiplexing,
-//! UDP-over-TCP and the reverse channel are intentionally left to follow-up
-//! work and are rejected up front rather than mis-handled.
+//! case with HTTP masking disabled: transparent TCP relay via `OpenTCP` and
+//! UDP relay via UDP-over-TCP (`StartUoT`, see [`uot`]). The 6-bit *packed*
+//! downlink, session multiplexing and the reverse channel are intentionally
+//! left to follow-up work and are rejected up front rather than mis-handled.
 
 mod grid;
 mod kip;
@@ -34,6 +35,7 @@ mod record;
 mod rng;
 mod rng_cooked;
 mod table;
+mod uot;
 
 use anyhow::{Context, Result, bail};
 
@@ -44,7 +46,9 @@ use crate::transport::{self, Security, Transport};
 
 use self::record::AeadMethod;
 
-/// Parsed configuration for a Sudoku outbound (TCP-only baseline).
+pub use self::uot::SudokuUdpAssoc;
+
+/// Parsed configuration for a Sudoku outbound (TCP relay + UDP-over-TCP).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SudokuOutboundConfig {
     pub server: String,
@@ -66,10 +70,11 @@ pub struct SudokuOutboundConfig {
 impl SudokuOutboundConfig {
     /// Build an outbound config from a parsed `sudoku` proxy entry.
     ///
-    /// Only the TCP-only baseline is accepted: HTTP masking must be disabled and
-    /// the pure (one-byte → four-hint) downlink must be selected. The packed
-    /// downlink, MUX, UoT and the reverse channel are deferred to follow-up work
-    /// and are rejected here rather than silently mis-handled.
+    /// Only the pure-downlink baseline is accepted: HTTP masking must be disabled
+    /// and the pure (one-byte → four-hint) downlink must be selected. The tunnel
+    /// then carries both TCP (`OpenTCP`) and UDP (`StartUoT`) traffic. The packed
+    /// downlink, session MUX and the reverse channel are deferred to follow-up
+    /// work and are rejected here rather than silently mis-handled.
     pub fn from_proxy(entry: &ProxyEntry) -> Result<Self> {
         let opts = &entry.options;
         let server = opts
@@ -125,11 +130,13 @@ impl SudokuOutboundConfig {
     }
 }
 
-/// Connect through the Sudoku server to `target` and return a relay-ready
-/// stream. Dials TCP, layers the obfuscation + AEAD record stacks, runs the KIP
-/// X25519 handshake (rekeying the record layer with the derived session keys),
-/// writes the `OpenTCP` request, and hands back a transparent stream.
-pub async fn connect(config: &SudokuOutboundConfig, target: &TargetAddr) -> Result<BoxedStream> {
+/// Dial the Sudoku server and bring the tunnel up to the point where it is
+/// ready to carry a control request: TCP + obfuscation + AEAD record stacks,
+/// the KIP X25519 handshake, and the post-handshake record rekey. The returned
+/// stream is shared by the TCP ([`connect`]) and UDP-over-TCP
+/// ([`uot`](self::uot)) data planes, which differ only in the control message
+/// they write next (`OpenTCP` vs `StartUoT`).
+async fn establish_session(config: &SudokuOutboundConfig) -> Result<BoxedStream> {
     let tables = table::new_directional_table(&config.key, &config.table_type, &config.custom_pattern)
         .context("sudoku: build obfuscation table")?;
     let table::DirectionalTable { uplink, downlink } = tables;
@@ -161,11 +168,18 @@ pub async fn connect(config: &SudokuOutboundConfig, target: &TargetAddr) -> Resu
         .rekey(&outcome.session_c2s, &outcome.session_s2c)
         .context("sudoku: rekey after handshake")?;
 
-    kip::write_open_tcp(&mut record, target)
+    Ok(Box::new(record))
+}
+
+/// Connect through the Sudoku server to `target` and return a relay-ready
+/// stream. Brings up the shared session (see [`establish_session`]), writes the
+/// `OpenTCP` request, and hands back a transparent stream.
+pub async fn connect(config: &SudokuOutboundConfig, target: &TargetAddr) -> Result<BoxedStream> {
+    let mut stream = establish_session(config).await?;
+    kip::write_open_tcp(&mut stream, target)
         .await
         .with_context(|| format!("sudoku: OpenTCP to {target}"))?;
-
-    Ok(Box::new(record))
+    Ok(stream)
 }
 
 #[cfg(test)]

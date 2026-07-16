@@ -24,6 +24,9 @@ pub(crate) const KIP_MAGIC: &[u8; 3] = b"kip";
 pub(crate) const KIP_TYPE_CLIENT_HELLO: u8 = 0x01;
 pub(crate) const KIP_TYPE_SERVER_HELLO: u8 = 0x02;
 pub(crate) const KIP_TYPE_OPEN_TCP: u8 = 0x10;
+/// Upgrade the tunnel into a UDP-over-TCP carrier (empty payload). Sent once,
+/// immediately after the handshake, in place of `OpenTCP`.
+pub(crate) const KIP_TYPE_START_UOT: u8 = 0x12;
 
 const KIP_FEAT_OPEN_TCP: u32 = 1 << 0;
 const KIP_FEAT_MUX: u32 = 1 << 1;

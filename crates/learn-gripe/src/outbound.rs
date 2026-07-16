@@ -183,6 +183,9 @@ pub enum UdpEgress {
     /// v4/v5), one transport unit per packet (a shadowaead chunk for v3, a v4
     /// frame for v4/v5).
     Snell(Box<SnellOutboundConfig>),
+    /// Sudoku carries datagrams over a `StartUoT` UDP-over-TCP session, one
+    /// `addr_len | payload_len | addr | payload` frame per packet.
+    Sudoku(Box<SudokuOutboundConfig>),
     /// WireGuard relays each datagram through a userspace smoltcp UDP socket
     /// whose IP packets ride the Noise tunnel (no proxy stream).
     WireGuard(Box<WireGuardOutboundConfig>),
@@ -222,12 +225,15 @@ fn udp_egress_for(mode: &OutboundMode) -> Option<UdpEgress> {
         OutboundMode::Snell(config) if config.supports_udp() => Some(UdpEgress::Snell(config.clone())),
         OutboundMode::Snell(_) => None,
         OutboundMode::Ssr(config) => Some(UdpEgress::Ssr(config.clone())),
+        // Sudoku UDP rides a `StartUoT` UDP-over-TCP carrier on the same tunnel
+        // the TCP data plane uses.
+        OutboundMode::Sudoku(config) => Some(UdpEgress::Sudoku(config.clone())),
         OutboundMode::WireGuard(config) => Some(UdpEgress::WireGuard(config.clone())),
         // `Routed` is resolved per datagram by `resolve_udp_egress` before it
         // reaches here; it has no egress of its own.
         OutboundMode::Routed(_) => None,
         // No UDP relay path: `Reject` blocks the datagram; an upstream
-        // SOCKS5/HTTP proxy has none here; SSH / GOST relay / mieru / sudoku are
+        // SOCKS5/HTTP proxy has none here; SSH / GOST relay / mieru are
         // TCP-only; Hysteria v1 here carries TCP only (no UDP relay yet). Their
         // associations are refused rather than leaked.
         OutboundMode::Reject
@@ -236,7 +242,6 @@ fn udp_egress_for(mode: &OutboundMode) -> Option<UdpEgress> {
         | OutboundMode::Ssh(_)
         | OutboundMode::GostRelay(_)
         | OutboundMode::Mieru(_)
-        | OutboundMode::Sudoku(_)
         | OutboundMode::Hysteria(_) => None,
     }
 }
@@ -272,6 +277,7 @@ pub async fn connect_proxy_udp(egress: &UdpEgress, target: &TargetAddr) -> Resul
         | UdpEgress::Shadowsocks(_)
         | UdpEgress::Ssr(_)
         | UdpEgress::Snell(_)
+        | UdpEgress::Sudoku(_)
         | UdpEgress::Hysteria2(_)
         | UdpEgress::Masque(_)
         | UdpEgress::Tuic(_)
