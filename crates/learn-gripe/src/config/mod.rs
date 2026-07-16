@@ -11,6 +11,7 @@ use crate::protocols::hysteria::HysteriaOutboundConfig;
 use crate::protocols::hysteria2::Hysteria2OutboundConfig;
 use crate::protocols::masque::MasqueOutboundConfig;
 use crate::protocols::mieru::MieruOutboundConfig;
+use crate::protocols::openvpn::OpenVpnOutboundConfig;
 use crate::protocols::shadowsocks::ShadowsocksOutboundConfig;
 use crate::protocols::snell::SnellOutboundConfig;
 use crate::protocols::ssh::SshOutboundConfig;
@@ -81,6 +82,8 @@ pub enum OutboundMode {
     TrustTunnel(Box<TrustTunnelOutboundConfig>),
     /// Forward through a WireGuard outbound (L3 tunnel + userspace netstack).
     WireGuard(Box<WireGuardOutboundConfig>),
+    /// Forward through an OpenVPN outbound (TCP + AEAD L3 tunnel + userspace netstack).
+    OpenVpn(Box<OpenVpnOutboundConfig>),
     /// Select the outbound per connection from a rule list.
     Routed(Box<Router>),
 }
@@ -134,6 +137,9 @@ impl OutboundMode {
                 TrustTunnelOutboundConfig::from_proxy(entry)?,
             ))),
             ProxyType::WireGuard => Ok(OutboundMode::WireGuard(Box::new(WireGuardOutboundConfig::from_proxy(
+                entry,
+            )?))),
+            ProxyType::OpenVpn => Ok(OutboundMode::OpenVpn(Box::new(OpenVpnOutboundConfig::from_proxy(
                 entry,
             )?))),
             other => bail!("proxy type {other:?} has no learn-gripe outbound yet"),
@@ -190,6 +196,7 @@ impl OutboundMode {
             OutboundMode::Sudoku(c) => Some(c.as_ref()),
             OutboundMode::TrustTunnel(c) => Some(c.as_ref()),
             OutboundMode::WireGuard(c) => Some(c.as_ref()),
+            OutboundMode::OpenVpn(c) => Some(c.as_ref()),
             OutboundMode::Direct
             | OutboundMode::Reject
             | OutboundMode::Socks5Upstream { .. }
@@ -314,8 +321,20 @@ mod tests {
 
     #[test]
     fn unimplemented_protocol_is_rejected() {
-        let err = OutboundMode::from_proxy(&entry("name: m\ntype: openvpn\nserver: a\nport: 1\n")).unwrap_err();
+        let err = OutboundMode::from_proxy(&entry("name: m\ntype: tailscale\nserver: a\nport: 1\n")).unwrap_err();
         assert!(err.to_string().contains("no learn-gripe outbound"), "{err}");
+    }
+
+    #[test]
+    fn openvpn_entry_maps_to_openvpn_outbound() {
+        let ca = "-----BEGIN CERTIFICATE-----\\nMIIB\\n-----END CERTIFICATE-----\\n";
+        let m = mode(&format!(
+            "name: o\ntype: openvpn\nserver: vpn.example\nport: 1194\nusername: u\npassword: p\nca: \"{ca}\"\n"
+        ));
+        assert!(matches!(m, OutboundMode::OpenVpn(_)));
+        assert_eq!(m.type_label(), "openvpn");
+        assert_eq!(m.direct_dial_endpoints(), vec![("vpn.example".to_string(), 1194)]);
+        assert!(m.supports_global_capture());
     }
 
     #[test]

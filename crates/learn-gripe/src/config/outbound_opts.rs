@@ -73,11 +73,10 @@ impl ProxyEntry {
             | ProxyType::Mieru
             | ProxyType::Sudoku
             | ProxyType::TrustTunnel
+            | ProxyType::OpenVpn
             | ProxyType::WireGuard => ProtocolSupport::Implemented,
             // Parsed and type-checked, but no outbound data plane yet.
-            ProxyType::Dns | ProxyType::OpenVpn | ProxyType::Tailscale | ProxyType::Unknown => {
-                ProtocolSupport::Unsupported
-            }
+            ProxyType::Dns | ProxyType::Tailscale | ProxyType::Unknown => ProtocolSupport::Unsupported,
         }
     }
 }
@@ -270,6 +269,28 @@ pub struct ProxyOptions {
     /// when `remote-dns-resolve` is set. Each entry is an IP (port defaults to
     /// 53) or `ip:port`.
     pub dns: Option<Vec<String>>,
+
+    // OpenVPN outbound (`type: openvpn`). `username`/`password` (above) carry
+    // the optional auth-user-pass credentials; `key` (above) the optional client
+    // private key. The rest are OpenVPN-specific.
+    /// Transport protocol (`proto`): `tcp` / `udp`. Only TCP is implemented.
+    pub proto: Option<String>,
+    /// Tunnel device type (`dev`): `tun` / `tap`. Only tun is implemented.
+    pub dev: Option<String>,
+    /// Inline CA certificate (`ca`, PEM) the server cert is pinned to.
+    pub ca: Option<String>,
+    /// Inline client certificate (`cert`, PEM) for client-certificate auth.
+    pub cert: Option<String>,
+    /// LZO compression directive (`comp-lzo`); only the disabled form is
+    /// accepted (compression is not implemented).
+    #[serde(rename = "comp-lzo")]
+    pub comp_lzo: Option<String>,
+    /// Static control-channel protection key (`tls-crypt`); not supported.
+    #[serde(rename = "tls-crypt")]
+    pub tls_crypt: Option<String>,
+    /// Static control-channel HMAC key (`tls-auth`); not supported.
+    #[serde(rename = "tls-auth")]
+    pub tls_auth: Option<String>,
 
     // Transport selection + typed option blocks.
     pub network: Option<Network>,

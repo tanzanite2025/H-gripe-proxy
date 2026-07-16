@@ -9,6 +9,7 @@ use crate::protocols::hysteria::{self, HysteriaOutboundConfig};
 use crate::protocols::hysteria2::{self, Hysteria2OutboundConfig};
 use crate::protocols::masque::MasqueOutboundConfig;
 use crate::protocols::mieru::{self, MieruOutboundConfig};
+use crate::protocols::openvpn::{self, OpenVpnOutboundConfig};
 use crate::protocols::shadowsocks::{self, ShadowsocksOutboundConfig};
 use crate::protocols::snell::{self, SnellOutboundConfig};
 use crate::protocols::ssh::{self, SshOutboundConfig};
@@ -120,6 +121,7 @@ impl_tcp_outbound!(SsrOutboundConfig, "ssr", ssr::connect);
 impl_tcp_outbound!(SudokuOutboundConfig, "sudoku", sudoku::connect);
 impl_tcp_outbound!(TrustTunnelOutboundConfig, "trusttunnel", trusttunnel::connect);
 impl_tcp_outbound!(WireGuardOutboundConfig, "wireguard", wireguard::connect);
+impl_tcp_outbound!(OpenVpnOutboundConfig, "openvpn", openvpn::connect);
 
 /// Establish an outbound connection to `target` according to `mode` and return
 /// a stream that is ready for relaying. `source` is the inbound peer's address
@@ -243,7 +245,8 @@ fn udp_egress_for(mode: &OutboundMode) -> Option<UdpEgress> {
         OutboundMode::Routed(_) => None,
         // No UDP relay path: `Reject` blocks the datagram; an upstream
         // SOCKS5/HTTP proxy has none here; SSH / GOST relay / mieru are
-        // TCP-only; Hysteria v1 here carries TCP only (no UDP relay yet). Their
+        // TCP-only; Hysteria v1 here carries TCP only (no UDP relay yet);
+        // OpenVPN's data plane relays TCP only in this slice. Their
         // associations are refused rather than leaked.
         OutboundMode::Reject
         | OutboundMode::Socks5Upstream { .. }
@@ -251,6 +254,7 @@ fn udp_egress_for(mode: &OutboundMode) -> Option<UdpEgress> {
         | OutboundMode::Ssh(_)
         | OutboundMode::GostRelay(_)
         | OutboundMode::Mieru(_)
+        | OutboundMode::OpenVpn(_)
         | OutboundMode::Hysteria(_) => None,
     }
 }

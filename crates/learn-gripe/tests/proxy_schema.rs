@@ -147,9 +147,13 @@ fn support_classification() {
         parse("name: h\ntype: hysteria2\nserver: a\nport: 443\npassword: p\n").support(),
         ProtocolSupport::Implemented
     );
-    // Parsed and typed, but no outbound data plane yet.
     assert_eq!(
         parse("name: o\ntype: openvpn\nserver: a\nport: 1194\n").support(),
+        ProtocolSupport::Implemented
+    );
+    // Parsed and typed, but no outbound data plane yet.
+    assert_eq!(
+        parse("name: ts\ntype: tailscale\nserver: a\nport: 443\n").support(),
         ProtocolSupport::Unsupported
     );
 }
