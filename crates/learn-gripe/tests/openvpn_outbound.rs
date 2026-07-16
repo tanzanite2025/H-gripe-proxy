@@ -35,7 +35,7 @@ use md5::Md5;
 use sha1::Sha1;
 use smoltcp::iface::{Config as IfaceConfig, Interface, SocketSet};
 use smoltcp::phy::{Device, DeviceCapabilities, Medium, RxToken, TxToken};
-use smoltcp::socket::tcp;
+use smoltcp::socket::{tcp, udp};
 use smoltcp::time::Instant as SmolInstant;
 use smoltcp::wire::{HardwareAddress, IpAddress, IpCidr, Ipv4Address};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf};
@@ -828,6 +828,15 @@ async fn run_data_plane(keys: ServerKeys, out: Out, data_rx: &mut mpsc::Unbounde
     listener.listen(INNER_PORT).unwrap();
     let handle = sockets.add(listener);
 
+    // A UDP echo on the same inner port: each datagram is sent back to its
+    // source, so the client's inner UDP relay can be exercised end to end.
+    let mut udp_echo = udp::Socket::new(
+        udp::PacketBuffer::new(vec![udp::PacketMetadata::EMPTY; 16], vec![0u8; 64 * 1024]),
+        udp::PacketBuffer::new(vec![udp::PacketMetadata::EMPTY; 16], vec![0u8; 64 * 1024]),
+    );
+    udp_echo.bind(INNER_PORT).unwrap();
+    let udp_handle = sockets.add(udp_echo);
+
     let mut send_pid: u32 = 0;
     loop {
         let now = now_since(start);
@@ -840,6 +849,14 @@ async fn run_data_plane(keys: ServerKeys, out: Out, data_rx: &mut mpsc::Unbounde
                 break;
             }
             let _ = sock.send_slice(&data);
+        }
+
+        let usock = sockets.get_mut::<udp::Socket>(udp_handle);
+        while usock.can_recv() {
+            let Ok((data, meta)) = usock.recv().map(|(d, m)| (d.to_vec(), m)) else {
+                break;
+            };
+            let _ = usock.send_slice(&data, meta.endpoint);
         }
 
         while let Some(pkt) = phy.tx.pop_front() {
@@ -970,6 +987,47 @@ async fn openvpn_udp_round_trips_a_payload() {
     let mut got = vec![0u8; payload.len()];
     stream.read_exact(&mut got).await.unwrap();
     assert_eq!(&got, payload);
+}
+
+#[tokio::test]
+async fn openvpn_relays_inner_udp_datagrams() {
+    let config = start_server().await;
+    let target = TargetAddr::Ip(SocketAddr::new(IpAddr::V4(INNER_IP), INNER_PORT));
+
+    let assoc = tokio::time::timeout(Duration::from_secs(20), openvpn::connect_udp(&config, &target))
+        .await
+        .expect("connect did not time out")
+        .expect("openvpn connect_udp");
+
+    // Each datagram must come back as exactly one datagram (boundaries kept).
+    for payload in [&b"first inner udp datagram"[..], &b"second one"[..]] {
+        assoc.send(payload).await.unwrap();
+        let got = tokio::time::timeout(Duration::from_secs(10), assoc.recv())
+            .await
+            .expect("recv did not time out")
+            .expect("udp recv");
+        assert_eq!(got, payload);
+    }
+}
+
+#[tokio::test]
+async fn openvpn_udp_transport_relays_inner_udp_datagrams() {
+    // Inner UDP relay over the UDP outer transport (no length-prefix framing).
+    let config = start_udp_server(false).await;
+    let target = TargetAddr::Ip(SocketAddr::new(IpAddr::V4(INNER_IP), INNER_PORT));
+
+    let assoc = tokio::time::timeout(Duration::from_secs(20), openvpn::connect_udp(&config, &target))
+        .await
+        .expect("connect did not time out")
+        .expect("openvpn connect_udp");
+
+    let payload = b"udp in udp";
+    assoc.send(payload).await.unwrap();
+    let got = tokio::time::timeout(Duration::from_secs(10), assoc.recv())
+        .await
+        .expect("recv did not time out")
+        .expect("udp recv");
+    assert_eq!(got, payload);
 }
 
 #[tokio::test]

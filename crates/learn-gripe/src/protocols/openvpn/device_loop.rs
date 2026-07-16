@@ -1,6 +1,6 @@
-//! The per-tunnel poll loop: bridges caller TCP flows through a smoltcp netstack
-//! whose inner IP packets are sealed into (and recovered from) the OpenVPN AEAD
-//! data channel.
+//! The per-tunnel poll loop: bridges caller TCP flows and UDP associations
+//! through a smoltcp netstack whose inner IP packets are sealed into (and
+//! recovered from) the OpenVPN AEAD data channel.
 
 use std::net::Ipv4Addr;
 use std::sync::{Arc, Mutex};
@@ -8,14 +8,14 @@ use std::task::Waker;
 use std::time::{Duration, Instant};
 
 use smoltcp::iface::{Interface, SocketHandle, SocketSet};
-use smoltcp::socket::tcp;
+use smoltcp::socket::{tcp, udp};
 use smoltcp::wire::IpEndpoint;
 use tokio::sync::{Notify, mpsc, oneshot};
 
 use super::data::{DataChannel, is_ping};
 use super::device::Command;
 use super::netstack::{OvPhy, build_interface, ip_address, is_dead, smol_now};
-use super::stream::OvpnTcpStream;
+use super::stream::{OvpnTcpStream, OvpnUdpAssoc};
 
 use crate::protocols::openvpn::control::PacketWriter;
 
@@ -23,6 +23,9 @@ use crate::protocols::openvpn::control::PacketWriter;
 pub(super) const CHANNEL_DEPTH: usize = 64;
 /// Per-flow smoltcp socket buffer size (each direction).
 pub(super) const FLOW_BUFFER: usize = 64 * 1024;
+/// Number of in-flight datagram slots per direction for a UDP flow's smoltcp
+/// packet buffer (each datagram needs one metadata slot).
+const UDP_META_SLOTS: usize = 64;
 /// How long to wait for a relayed TCP connection to reach `Established`.
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 /// Upper bound on how long the device poll loop sleeps between wakeups.
@@ -41,6 +44,7 @@ pub(super) struct DeviceLoop {
     mtu: usize,
     local_v4: Ipv4Addr,
     flows: Vec<OvpnFlow>,
+    udp_flows: Vec<OvpnUdpFlow>,
     next_port: u16,
     wake: Arc<Notify>,
     writer_wakers: WriterWakers,
@@ -57,6 +61,21 @@ struct OvpnFlow {
     connect_reply: Option<oneshot::Sender<OvpnTcpStream>>,
     stream_slot: Option<OvpnTcpStream>,
     deadline: Instant,
+}
+
+/// Bridge state for one relayed UDP association, owned by the poll loop. Unlike
+/// TCP there is no connection state: datagrams flow to a fixed `remote` and one
+/// datagram maps to one inner UDP packet.
+struct OvpnUdpFlow {
+    handle: SocketHandle,
+    /// Fixed inner destination for this association.
+    remote: IpEndpoint,
+    /// Caller -> socket datagrams.
+    write_rx: mpsc::Receiver<Vec<u8>>,
+    /// Socket -> caller datagrams.
+    read_tx: mpsc::Sender<Vec<u8>>,
+    /// A datagram accepted from the caller but not yet handed to the send buffer.
+    pending: Option<Vec<u8>>,
 }
 
 impl DeviceLoop {
@@ -76,6 +95,7 @@ impl DeviceLoop {
             mtu,
             local_v4,
             flows: Vec::new(),
+            udp_flows: Vec::new(),
             next_port: 1024,
             wake: Arc::new(Notify::new()),
             writer_wakers: Arc::new(Mutex::new(Vec::new())),
@@ -92,6 +112,7 @@ impl DeviceLoop {
             let now = smol_now(start);
             iface.poll(now, &mut phy, &mut sockets);
             self.service_flows(&mut sockets);
+            self.service_udp_flows(&mut sockets);
             self.wake_writers();
             self.encapsulate_tx(&mut phy).await;
 
@@ -118,7 +139,10 @@ impl DeviceLoop {
     /// Open a smoltcp client socket to `dst`, wire its bridge channels, and stash
     /// the caller's stream to hand over once it connects.
     fn handle_command(&mut self, cmd: Command, sockets: &mut SocketSet, iface: &mut Interface) {
-        let Command::OpenTcp { dst, reply } = cmd;
+        let (dst, reply) = match cmd {
+            Command::OpenTcp { dst, reply } => (dst, reply),
+            Command::OpenUdp { dst, reply } => return self.handle_open_udp(dst, reply, sockets),
+        };
         let remote = IpEndpoint::new(ip_address(dst.ip()), dst.port());
         let mut sock = tcp::Socket::new(
             tcp::SocketBuffer::new(vec![0u8; FLOW_BUFFER]),
@@ -154,10 +178,114 @@ impl DeviceLoop {
         });
     }
 
+    /// Open a smoltcp UDP socket bound to a local port for datagrams destined to
+    /// `dst`, wire its bridge channels, and hand the association back. Unlike
+    /// TCP there is no connect handshake, so the association is returned
+    /// immediately.
+    fn handle_open_udp(
+        &mut self,
+        dst: std::net::SocketAddr,
+        reply: oneshot::Sender<OvpnUdpAssoc>,
+        sockets: &mut SocketSet,
+    ) {
+        let remote = IpEndpoint::new(ip_address(dst.ip()), dst.port());
+        let mut sock = udp::Socket::new(
+            udp::PacketBuffer::new(vec![udp::PacketMetadata::EMPTY; UDP_META_SLOTS], vec![0u8; FLOW_BUFFER]),
+            udp::PacketBuffer::new(vec![udp::PacketMetadata::EMPTY; UDP_META_SLOTS], vec![0u8; FLOW_BUFFER]),
+        );
+        let local_port = self.alloc_port();
+        if sock.bind(local_port).is_err() {
+            return; // dropping `reply` reports the failure to the caller
+        }
+        let handle = sockets.add(sock);
+
+        let (write_tx, write_rx) = mpsc::channel::<Vec<u8>>(CHANNEL_DEPTH);
+        let (read_tx, read_rx) = mpsc::channel::<Vec<u8>>(CHANNEL_DEPTH);
+        let assoc = OvpnUdpAssoc {
+            write_tx,
+            read_rx: tokio::sync::Mutex::new(read_rx),
+            wake: self.wake.clone(),
+        };
+        self.udp_flows.push(OvpnUdpFlow {
+            handle,
+            remote,
+            write_rx,
+            read_tx,
+            pending: None,
+        });
+        let _ = reply.send(assoc);
+    }
+
     fn alloc_port(&mut self) -> u16 {
         let port = self.next_port;
         self.next_port = self.next_port.checked_add(1).unwrap_or(1024);
         port
+    }
+
+    /// Move datagrams between each UDP flow's smoltcp socket and its bridge
+    /// channels, dropping (rather than stalling) when a buffer is full, and reap
+    /// flows whose caller association has been dropped.
+    fn service_udp_flows(&mut self, sockets: &mut SocketSet) {
+        let mut done: Vec<usize> = Vec::new();
+        for (idx, flow) in self.udp_flows.iter_mut().enumerate() {
+            let sock = sockets.get_mut::<udp::Socket>(flow.handle);
+            let mut reap = false;
+
+            // caller -> socket
+            loop {
+                if flow.pending.is_none() {
+                    match flow.write_rx.try_recv() {
+                        Ok(buf) => flow.pending = Some(buf),
+                        Err(mpsc::error::TryRecvError::Empty) => break,
+                        Err(mpsc::error::TryRecvError::Disconnected) => {
+                            reap = true;
+                            break;
+                        }
+                    }
+                }
+                if !sock.can_send() {
+                    break;
+                }
+                let Some(buf) = flow.pending.take() else { break };
+                match sock.send_slice(&buf, flow.remote) {
+                    Ok(()) => {}
+                    // Send buffer is full: retry this datagram next turn.
+                    Err(udp::SendError::BufferFull) => {
+                        flow.pending = Some(buf);
+                        break;
+                    }
+                    // No route to the destination: drop the datagram.
+                    Err(udp::SendError::Unaddressable) => {}
+                }
+            }
+
+            // socket -> caller
+            while sock.can_recv() {
+                let payload = match sock.recv() {
+                    Ok((data, _meta)) => data.to_vec(),
+                    Err(_) => break,
+                };
+                match flow.read_tx.try_send(payload) {
+                    Ok(()) => {}
+                    // Caller is draining slowly: drop this reply (UDP is lossy).
+                    Err(mpsc::error::TrySendError::Full(_)) => break,
+                    // Caller association dropped: reap the flow.
+                    Err(mpsc::error::TrySendError::Closed(_)) => {
+                        reap = true;
+                        break;
+                    }
+                }
+            }
+
+            if reap {
+                done.push(idx);
+            }
+        }
+
+        for idx in done.into_iter().rev() {
+            let flow = self.udp_flows.swap_remove(idx);
+            sockets.remove(flow.handle);
+        }
     }
 
     /// Move bytes between each flow's smoltcp socket and its bridge channels,

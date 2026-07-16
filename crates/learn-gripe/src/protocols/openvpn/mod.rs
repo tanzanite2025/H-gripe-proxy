@@ -21,8 +21,8 @@
 //!   AEAD data channel is unreliable (inner TCP recovers loss).
 //! - **AEAD data ciphers only**: `AES-256-GCM` (default), `AES-128-GCM`,
 //!   `CHACHA20-POLY1305`. CBC + HMAC ciphers are rejected.
-//! - **TCP relay only** through the tunnel (IPv4 inner targets); UDP relay and
-//!   tunnel-side DNS are not implemented (targets resolve via the host
+//! - **TCP and UDP relay** through the tunnel (IPv4 inner targets only);
+//!   tunnel-side DNS is not implemented (targets resolve via the host
 //!   resolver).
 //! - Server certificate pinned to the inline `ca`; optional client-certificate
 //!   (`cert`/`key`) and/or username/password auth.
@@ -51,6 +51,8 @@ use crate::config::outbound_opts::ProxyEntry;
 use crate::outbound::BoxedStream;
 
 use device::OpenVpnDevice;
+
+pub use stream::OvpnUdpAssoc;
 
 /// Default tunnel MTU (max inner IP packet).
 const DEFAULT_MTU: u32 = 1500;
@@ -215,6 +217,20 @@ pub async fn connect(config: &OpenVpnOutboundConfig, target: &TargetAddr) -> Res
     let dst = resolve_target(target).await?;
     let stream = device.open_tcp(dst).await?;
     Ok(Box::new(stream) as BoxedStream)
+}
+
+/// Open a relayed UDP association to `target` through the OpenVPN tunnel,
+/// reusing (or lazily building) the per-config device. Each association is a
+/// userspace smoltcp UDP socket; datagrams to the resolved destination are
+/// sealed into `P_DATA_V2` like the TCP flows. The inner stack is IPv4-only, so
+/// IPv6 destinations are rejected.
+pub async fn connect_udp(config: &OpenVpnOutboundConfig, target: &TargetAddr) -> Result<OvpnUdpAssoc> {
+    let device = OpenVpnDevice::get_or_create(config).await?;
+    let dst = resolve_target(target).await?;
+    if !dst.is_ipv4() {
+        bail!("openvpn: inner relay is IPv4-only, cannot reach {dst}");
+    }
+    device.open_udp(dst).await
 }
 
 /// Resolve a relayed target to a literal socket address via the host resolver

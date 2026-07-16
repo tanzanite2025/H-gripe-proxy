@@ -186,6 +186,7 @@ pub(crate) async fn run_egress<S: ReplySink + Send + 'static>(
         UdpEgress::Masque(config) => run_masque_egress(config, target, rx, sink, idle).await,
         UdpEgress::Tuic(config) => run_tuic_egress(config, target, rx, sink, idle).await,
         UdpEgress::WireGuard(config) => run_wireguard_egress(config, target, rx, sink, idle).await,
+        UdpEgress::OpenVpn(config) => run_openvpn_egress(config, target, rx, sink, idle).await,
         // Proxy-stream framings (Trojan / VLESS / VMess / AnyTLS) share the
         // generic proxy egress loop. Listed explicitly (no wildcard) so a new
         // transport must pick a runner here rather than silently defaulting to
@@ -486,6 +487,35 @@ async fn run_wireguard_egress<S: ReplySink>(
     }
 }
 
+/// OpenVPN UDP egress: relay datagrams through a userspace smoltcp UDP socket
+/// inside the tunnel device, sealing each IP packet into the `P_DATA_V2` AEAD
+/// data channel. One datagram maps to one inner UDP packet to the resolved
+/// destination.
+async fn run_openvpn_egress<S: ReplySink>(
+    config: Box<crate::protocols::openvpn::OpenVpnOutboundConfig>,
+    target: TargetAddr,
+    mut rx: mpsc::Receiver<Vec<u8>>,
+    sink: S,
+    idle: Option<Duration>,
+) -> Result<()> {
+    let assoc = crate::protocols::openvpn::connect_udp(&config, &target).await?;
+    loop {
+        tokio::select! {
+            maybe = rx.recv() => match maybe {
+                Some(payload) => assoc.send(&payload).await?,
+                None => return Ok(()),
+            },
+            res = assoc.recv() => {
+                let payload = res?;
+                if !sink.deliver(&payload).await {
+                    return Ok(());
+                }
+            }
+            _ = idle_elapsed(idle) => return Ok(()),
+        }
+    }
+}
+
 /// Proxy-tunnel UDP egress: open the protocol's UDP stream and relay datagrams
 /// in both directions, applying the protocol's per-packet framing.
 async fn run_proxy_egress<S: ReplySink>(
@@ -547,7 +577,8 @@ impl ProxyFraming {
             | UdpEgress::Hysteria2(_)
             | UdpEgress::Masque(_)
             | UdpEgress::Tuic(_)
-            | UdpEgress::WireGuard(_) => ProxyFraming::Chunked,
+            | UdpEgress::WireGuard(_)
+            | UdpEgress::OpenVpn(_) => ProxyFraming::Chunked,
         }
     }
 }
