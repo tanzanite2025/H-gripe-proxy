@@ -1,12 +1,18 @@
-//! OpenVPN TCP packet framing, the reliability/ack control channel, and the
+//! OpenVPN packet framing, the reliability/ack control channel, and the
 //! adapter that tunnels the control-channel TLS handshake over `P_CONTROL_V1`
 //! messages.
 //!
-//! The underlying transport is a single TCP connection; each OpenVPN packet is
-//! length-prefixed (`u16` big-endian). A background mux task reads packets and
-//! splits them into a control queue and a data queue. Control packets ride the
-//! reliability layer here (message ids + acks); data packets go straight to the
-//! device loop.
+//! The underlying transport is either a single TCP connection (each OpenVPN
+//! packet length-prefixed with a `u16` big-endian length) or a connected UDP
+//! socket (each datagram carries exactly one OpenVPN packet, no length prefix).
+//! A background mux task reads packets and splits them into a control queue and
+//! a data queue. Control packets ride the reliability layer here (message ids +
+//! acks + retransmission); data packets go straight to the device loop.
+//!
+//! TCP is an ordered, lossless stream, so control retransmission is a no-op
+//! there. UDP is lossy/unordered, so the handshake drives
+//! [`ControlChannel::retransmit_pending`] on a timer until it completes;
+//! unacked reliable control packets are retained until the peer acks them.
 
 use std::collections::HashMap;
 use std::pin::Pin;
@@ -16,6 +22,7 @@ use std::task::{Context as TaskContext, Poll};
 
 use anyhow::{Result, anyhow};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf};
+use tokio::net::UdpSocket;
 use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 use tokio::sync::{Mutex as AsyncMutex, mpsc};
 
@@ -27,30 +34,43 @@ use super::packet::{
 /// Max OpenVPN packet size on the wire (the `u16` length ceiling).
 const MAX_PACKET: usize = 0xffff;
 
-/// Serialized writer over the TCP write half; every control ack/message and
-/// every encrypted data packet is framed and written through this so the two
-/// producers (control channel + device loop) never interleave bytes.
-pub(super) struct PacketWriter {
-    inner: AsyncMutex<OwnedWriteHalf>,
+/// Serialized writer over the tunnel transport; every control ack/message and
+/// every encrypted data packet is written through this so the two producers
+/// (control channel + device loop) never interleave bytes on the TCP stream.
+pub(super) enum PacketWriter {
+    /// A TCP write half; packets are length-prefixed (`u16` big-endian).
+    Tcp(AsyncMutex<OwnedWriteHalf>),
+    /// A connected UDP socket; each packet is sent as one datagram.
+    Udp(Arc<UdpSocket>),
 }
 
 impl PacketWriter {
-    pub(super) fn new(write_half: OwnedWriteHalf) -> Self {
-        Self {
-            inner: AsyncMutex::new(write_half),
-        }
+    pub(super) fn tcp(write_half: OwnedWriteHalf) -> Self {
+        Self::Tcp(AsyncMutex::new(write_half))
     }
 
-    /// Length-prefix `packet` and write it to the TCP stream.
+    pub(super) fn udp(socket: Arc<UdpSocket>) -> Self {
+        Self::Udp(socket)
+    }
+
+    /// Write one OpenVPN packet to the transport (length-prefixed on TCP, one
+    /// datagram on UDP).
     pub(super) async fn write_packet(&self, packet: &[u8]) -> Result<()> {
         if packet.len() > MAX_PACKET {
-            return Err(anyhow!("openvpn: tcp packet too large: {}", packet.len()));
+            return Err(anyhow!("openvpn: packet too large: {}", packet.len()));
         }
-        let mut frame = Vec::with_capacity(2 + packet.len());
-        frame.extend_from_slice(&(packet.len() as u16).to_be_bytes());
-        frame.extend_from_slice(packet);
-        let mut guard = self.inner.lock().await;
-        guard.write_all(&frame).await?;
+        match self {
+            Self::Tcp(inner) => {
+                let mut frame = Vec::with_capacity(2 + packet.len());
+                frame.extend_from_slice(&(packet.len() as u16).to_be_bytes());
+                frame.extend_from_slice(packet);
+                let mut guard = inner.lock().await;
+                guard.write_all(&frame).await?;
+            }
+            Self::Udp(socket) => {
+                socket.send(packet).await?;
+            }
+        }
         Ok(())
     }
 }
@@ -90,11 +110,45 @@ pub(super) async fn run_mux(
     }
 }
 
+/// Read datagrams from a connected UDP `socket`, dispatching each (one OpenVPN
+/// packet per datagram, no length prefix) to `control_tx` or `data_tx`. Exits
+/// (dropping both senders) on socket error, tearing down dependent channels.
+pub(super) async fn run_mux_udp(
+    socket: Arc<UdpSocket>,
+    control_tx: mpsc::UnboundedSender<Vec<u8>>,
+    data_tx: mpsc::UnboundedSender<Vec<u8>>,
+) {
+    let mut buf = vec![0u8; MAX_PACKET];
+    loop {
+        let n = match socket.recv(&mut buf).await {
+            Ok(n) => n,
+            Err(_) => return,
+        };
+        if n == 0 {
+            continue;
+        }
+        let packet = buf[..n].to_vec();
+        let (opcode, _) = parse_opcode_key_id(packet[0]);
+        let sender = if super::packet::is_control(opcode) {
+            &control_tx
+        } else {
+            &data_tx
+        };
+        if sender.send(packet).is_err() {
+            return;
+        }
+    }
+}
+
 struct ControlState {
     send_message: u32,
     recv_message: u32,
     ack_pending: Vec<u32>,
     recv_pending: HashMap<u32, ControlPacket>,
+    /// Reliable control packets we sent but have not yet seen acked, kept for
+    /// retransmission over a lossy (UDP) transport. Removed when the peer acks
+    /// their message id.
+    unacked: HashMap<u32, ControlPacket>,
     remote: SessionId,
 }
 
@@ -119,6 +173,7 @@ impl ControlChannel {
                 recv_message: 0,
                 ack_pending: Vec::new(),
                 recv_pending: HashMap::new(),
+                unacked: HashMap::new(),
                 remote: [0u8; 8],
             }),
             rx: AsyncMutex::new(rx),
@@ -155,10 +210,35 @@ impl ControlChannel {
                 message_id,
                 payload: payload.to_vec(),
             };
+            st.unacked.insert(message_id, packet.clone());
             (message_id, packet)
         };
         self.writer.write_packet(&packet.encode()?).await?;
         Ok(message_id)
+    }
+
+    /// Resend every reliable control packet the peer has not yet acked, folding
+    /// in any acks we currently owe. Called on a timer during the handshake on
+    /// UDP transports; a no-op once everything has been acked.
+    pub(super) async fn retransmit_pending(&self) -> Result<()> {
+        let packets = {
+            let mut st = self.state.lock().expect("openvpn control state");
+            if st.unacked.is_empty() {
+                return Ok(());
+            }
+            let ack_ids = std::mem::take(&mut st.ack_pending);
+            let remote = st.remote;
+            let mut packets: Vec<ControlPacket> = st.unacked.values().cloned().collect();
+            for packet in &mut packets {
+                packet.ack_ids = ack_ids.clone();
+                packet.ack_remote_session = remote;
+            }
+            packets
+        };
+        for packet in &packets {
+            self.writer.write_packet(&packet.encode()?).await?;
+        }
+        Ok(())
     }
 
     /// Flush any pending acks as a bare `P_ACK_V1` packet.
@@ -209,6 +289,9 @@ impl ControlChannel {
                 let mut st = self.state.lock().expect("openvpn control state");
                 if st.remote == [0u8; 8] && packet.local_session != self.local {
                     st.remote = packet.local_session;
+                }
+                for ack in &packet.ack_ids {
+                    st.unacked.remove(ack);
                 }
                 if has_message_id(packet.opcode) {
                     let id = packet.message_id;

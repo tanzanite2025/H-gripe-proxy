@@ -16,7 +16,9 @@
 //! elsewhere in the kernel.
 //!
 //! Scope (this slice — deliberately a subset of OpenVPN, not full parity):
-//! - **TCP transport only** (`proto tcp`); UDP transport is rejected.
+//! - **TCP and UDP transport** (`proto tcp` / `proto udp`). On UDP the reliable
+//!   control channel retransmits unacked handshake packets on a timer; the
+//!   AEAD data channel is unreliable (inner TCP recovers loss).
 //! - **AEAD data ciphers only**: `AES-256-GCM` (default), `AES-128-GCM`,
 //!   `CHACHA20-POLY1305`. CBC + HMAC ciphers are rejected.
 //! - **TCP relay only** through the tunnel (IPv4 inner targets); UDP relay and
@@ -70,6 +72,8 @@ pub struct OpenVpnOutboundConfig {
     password: Option<String>,
     /// Normalized AEAD cipher name (e.g. `AES-256-GCM`).
     cipher: String,
+    /// Whether the tunnel transport is UDP (`true`) or TCP (`false`).
+    udp: bool,
     mtu: u32,
 }
 
@@ -82,13 +86,15 @@ impl OpenVpnOutboundConfig {
             .ok_or_else(|| anyhow!("openvpn: missing `server`"))?;
         let port = opts.port.ok_or_else(|| anyhow!("openvpn: missing `port`"))?;
 
-        // Transport: TCP only.
-        if let Some(proto) = opts.proto.as_deref() {
-            let proto = proto.trim().to_ascii_lowercase();
-            if !matches!(proto.as_str(), "tcp" | "tcp-client" | "tcp4" | "tcp4-client") {
-                bail!("openvpn: unsupported `proto` {proto:?} (only TCP is implemented)");
-            }
-        }
+        // Transport: TCP or UDP (IPv4 client variants).
+        let udp = match opts.proto.as_deref().map(|p| p.trim().to_ascii_lowercase()) {
+            None => false,
+            Some(proto) => match proto.as_str() {
+                "tcp" | "tcp-client" | "tcp4" | "tcp4-client" => false,
+                "udp" | "udp-client" | "udp4" | "udp4-client" => true,
+                other => bail!("openvpn: unsupported `proto` {other:?} (only tcp and udp are implemented)"),
+            },
+        };
 
         // Device type: tun only (no L2 tap bridging).
         if let Some(dev) = opts.dev.as_deref() {
@@ -158,6 +164,7 @@ impl OpenVpnOutboundConfig {
             username,
             password,
             cipher,
+            udp,
             mtu,
         })
     }
@@ -176,8 +183,9 @@ impl OpenVpnOutboundConfig {
         cred.update(&[0]);
         cred.update(self.password.as_deref().unwrap_or_default().as_bytes());
         let cred_tag = cred.finalize();
+        let proto = if self.udp { "udp" } else { "tcp" };
         format!(
-            "{}:{}|{}|{}|{cred_tag:08x}",
+            "{}:{}|{proto}|{}|{}|{cred_tag:08x}",
             self.server,
             self.port,
             self.cipher,
@@ -244,13 +252,33 @@ mod tests {
     }
 
     #[test]
-    fn rejects_udp_proto() {
-        let err = OpenVpnOutboundConfig::from_proxy(&entry(&format!(
+    fn accepts_udp_proto() {
+        let cfg = OpenVpnOutboundConfig::from_proxy(&entry(&format!(
             "name: o\ntype: openvpn\nserver: vpn.example\nport: 1194\nproto: udp\nusername: u\npassword: p\nca: \"{}\"\n",
+            CA.replace('\n', "\\n")
+        )))
+        .unwrap();
+        assert!(cfg.udp);
+    }
+
+    #[test]
+    fn rejects_unknown_proto() {
+        let err = OpenVpnOutboundConfig::from_proxy(&entry(&format!(
+            "name: o\ntype: openvpn\nserver: vpn.example\nport: 1194\nproto: sctp\nusername: u\npassword: p\nca: \"{}\"\n",
             CA.replace('\n', "\\n")
         )))
         .unwrap_err();
         assert!(err.to_string().contains("proto"), "{err}");
+    }
+
+    #[test]
+    fn defaults_to_tcp_proto() {
+        let cfg = OpenVpnOutboundConfig::from_proxy(&entry(&format!(
+            "name: o\ntype: openvpn\nserver: vpn.example\nport: 1194\nusername: u\npassword: p\nca: \"{}\"\n",
+            CA.replace('\n', "\\n")
+        )))
+        .unwrap();
+        assert!(!cfg.udp);
     }
 
     #[test]
