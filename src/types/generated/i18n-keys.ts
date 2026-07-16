@@ -289,6 +289,8 @@ export const translationKeys = [
   'profiles.modals.logViewer.title',
   'profiles.modals.qrViewer.title',
   'proxies.page.actions.toggleChain',
+  'proxies.page.actions.proxyDetection',
+  'proxies.page.actions.dnsLeak',
   'proxies.page.actions.connect',
   'proxies.page.actions.disconnect',
   'proxies.page.actions.connecting',

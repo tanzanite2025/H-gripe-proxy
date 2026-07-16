@@ -2,6 +2,8 @@
   "page": {
     "actions": {
       "toggleChain": "Chain Proxy",
+      "proxyDetection": "Proxy Detection",
+      "dnsLeak": "DNS Security Check",
       "connect": "Connect",
       "disconnect": "Disconnect",
       "connecting": "Connecting...",
