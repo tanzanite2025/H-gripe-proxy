@@ -549,6 +549,8 @@ fn outbound_label(outbound: &OutboundMode) -> &'static str {
         OutboundMode::Ssr(_) => "ssr",
         OutboundMode::Sudoku(_) => "sudoku",
         OutboundMode::WireGuard(_) => "wireguard",
+        OutboundMode::TrustTunnel(_) => "trusttunnel",
+        OutboundMode::OpenVpn(_) => "openvpn",
         OutboundMode::Routed(_) => "routed",
     }
 }
