@@ -200,11 +200,11 @@ src/
 
 ### 5.4 顺带：超出仓库 800 行上限的协议巨石文件
 
-`ssr.rs`(2095) · `snell.rs`(2178) · `anytls.rs`(1682) · `wireguard.rs`(1671)。功能无误，但应按 `protocols/sudoku/` 的范式（obfs/record/kip/table/… 拆成 8 个小文件）拆到各自的 `protocols/<name>/` 子目录。低风险、可独立 PR。
+`ssr.rs`(2095) · `snell.rs`(2178) · `anytls.rs`(1682) · `wireguard.rs`(1671)。功能无误，但应按 `protocols/sudoku/` 的范式（obfs/record/kip/table/… 拆成 8 个小文件）拆到各自的 `protocols/<name>/` 子目录。低风险、可独立 PR。✅ 已完成：ssr（PR #495）、snell（PR #496）、anytls（PR #497）、wireguard（PR #498），均已合并。
 
 ### 5.5 建议执行顺序（每步独立 PR、独立过 CI）
 
 1. ✅ **止血**：修 `support()` 漂移 + 穷尽测试（PR #490，已合并）。
 2. ✅ **TCP 分发 trait 化**（PR #492，已合并）：引入 `TcpOutbound` trait（`type_label`/`dial_endpoint`/`supports_global_capture`/`connect_tcp`），各协议用 `impl_tcp_outbound!` 宏实现一次；`OutboundMode::as_tcp_outbound` 成为唯一穷尽映射，`connect`/`type_label`/`direct_dial_endpoints`/`supports_global_capture` 全部经它分发。`from_proxy` 仍是注册映射（暂未做 `Box<dyn>` 注册表）。
 3. ✅ **UDP 分发收敛**（PR #493）：`supports_udp_associate` 与 `resolve_udp_egress` 的协议清单收敛到单一 `udp_egress_for` 真源（前者由后者派生，加 `supports_udp_associate_tracks_resolve_egress` 守护测试）；`run_egress` 去掉通配、改为穷尽匹配。**注意**：UDP egress 运行器（`run_egress`/`run_*_egress`）对 `ReplySink` 泛型，不是对象安全的，无法并入 `dyn` trait，因此 `UdpEgress` 仍保留为枚举（QUIC datagram / proxy-stream / 裸 UDP socket / udp-over-tcp 四类语义 + 各自 runner），由穷尽 match 防漂移——这是设计约束而非堆叠。
-4. **拆巨石文件**：ssr / snell / anytls / wireguard 目录化。
+4. ✅ **拆巨石文件**：ssr / snell / anytls / wireguard 目录化（PR #495 / #496 / #497 / #498，已合并）。公共 API 与外部调用点保持不变，跨子模块内部项用 `pub(super)` 收窄可见性。
