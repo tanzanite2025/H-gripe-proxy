@@ -12,6 +12,7 @@ pub mod hysteria;
 pub mod hysteria2;
 pub mod masque;
 pub mod mieru;
+pub mod openvpn;
 pub mod quic_udp;
 pub mod salamander;
 pub mod shadowsocks;

@@ -40,6 +40,7 @@ pub use protocols::hysteria::HysteriaOutboundConfig;
 pub use protocols::hysteria2::Hysteria2OutboundConfig;
 pub use protocols::masque::MasqueOutboundConfig;
 pub use protocols::mieru::MieruOutboundConfig;
+pub use protocols::openvpn::{self, OpenVpnOutboundConfig};
 pub use protocols::salamander::Salamander;
 pub use protocols::shadowsocks::{ShadowsocksCipher, ShadowsocksOutboundConfig};
 pub use protocols::snell::{SnellObfs, SnellOutboundConfig};

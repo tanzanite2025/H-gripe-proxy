@@ -92,6 +92,11 @@ boringtun = { version = "0.7.1", default-features = false }
 # `aws-lc-rs` backend pulls a C toolchain, so select the pure-Rust `ring` backend
 # to match the rest of the workspace's crypto.
 russh = { version = "0.61.2", default-features = false, features = ["ring"] }
+# OpenVPN pins the control-channel server certificate to an inline `ca` (PEM),
+# and optionally presents an inline client `cert`/`key`. rustls-pemfile decodes
+# those PEM blocks into the DER types rustls consumes (already used by the
+# outbound integration tests; promoted to a runtime dep for the OpenVPN config).
+rustls-pemfile = "2.2.0"
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util", "macros", "rt-multi-thread", "sync"] }
