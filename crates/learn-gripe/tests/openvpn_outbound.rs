@@ -1,20 +1,25 @@
 //! End-to-end proof that traffic flows through an OpenVPN outbound.
 //!
 //! The kernel's OpenVPN outbound (`protocols::openvpn`) is exercised against an
-//! **independent** fake OpenVPN TCP server built here from scratch: it speaks
-//! the length-prefixed packet framing, the reliable hard-reset / `P_CONTROL_V1`
-//! control channel, a real TLS 1.x handshake tunnelled over control messages
-//! (rustls server), the key-method-2 exchange + OpenVPN PRF key derivation, the
-//! `PUSH_REQUEST`/`PUSH_REPLY` step, and finally an AES-256-GCM `P_DATA_V2` data
-//! channel feeding a second smoltcp stack that terminates the inner TCP and
-//! echoes. This proves the full path: client smoltcp SYN -> AEAD -> TCP ->
-//! server decrypt -> server smoltcp accept/echo -> AEAD -> TCP -> client
-//! decrypt -> client smoltcp data.
+//! **independent** fake OpenVPN server built here from scratch: it speaks the
+//! packet framing (length-prefixed on TCP, one datagram per packet on UDP), the
+//! reliable hard-reset / `P_CONTROL_V1` control channel, a real TLS 1.x
+//! handshake tunnelled over control messages (rustls server), the key-method-2
+//! exchange + OpenVPN PRF key derivation, the `PUSH_REQUEST`/`PUSH_REPLY` step,
+//! and finally an AES-256-GCM `P_DATA_V2` data channel feeding a second smoltcp
+//! stack that terminates the inner TCP and echoes. This proves the full path:
+//! client smoltcp SYN -> AEAD -> transport -> server decrypt -> server smoltcp
+//! accept/echo -> AEAD -> transport -> client decrypt -> client smoltcp data.
+//!
+//! Both TCP and UDP transports are covered; the UDP server additionally acks
+//! client control packets and, in one test, drops the client's first hard reset
+//! to prove the client's control-channel retransmission recovers over a lossy
+//! datagram transport.
 //!
 //! The server crypto/codec is written independently of the crate under test so
 //! the test proves genuine interop rather than that the code agrees with itself.
 
-use std::collections::VecDeque;
+use std::collections::{HashSet, VecDeque};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::pin::Pin;
 use std::sync::Arc;
@@ -34,8 +39,8 @@ use smoltcp::socket::tcp;
 use smoltcp::time::Instant as SmolInstant;
 use smoltcp::wire::{HardwareAddress, IpAddress, IpCidr, Ipv4Address};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf};
-use tokio::net::TcpListener;
 use tokio::net::tcp::OwnedWriteHalf;
+use tokio::net::{TcpListener, UdpSocket};
 use tokio::sync::{Mutex, mpsc};
 use tokio_rustls::TlsAcceptor;
 
@@ -138,14 +143,31 @@ impl ControlPacket {
     }
 }
 
-/// Length-prefix and write one packet to the shared TCP write half.
-async fn write_frame(writer: &Mutex<OwnedWriteHalf>, packet: &[u8]) {
-    let mut frame = Vec::with_capacity(2 + packet.len());
-    frame.extend_from_slice(&(packet.len() as u16).to_be_bytes());
-    frame.extend_from_slice(packet);
-    let mut guard = writer.lock().await;
-    let _ = guard.write_all(&frame).await;
-    let _ = guard.flush().await;
+/// The fake server's outbound transport: a TCP write half (length-prefixed) or
+/// a connected UDP socket (one datagram per packet).
+#[derive(Clone)]
+enum Out {
+    Tcp(Arc<Mutex<OwnedWriteHalf>>),
+    Udp(Arc<UdpSocket>),
+}
+
+impl Out {
+    /// Write one OpenVPN packet to the transport.
+    async fn send(&self, packet: &[u8]) {
+        match self {
+            Out::Tcp(writer) => {
+                let mut frame = Vec::with_capacity(2 + packet.len());
+                frame.extend_from_slice(&(packet.len() as u16).to_be_bytes());
+                frame.extend_from_slice(packet);
+                let mut guard = writer.lock().await;
+                let _ = guard.write_all(&frame).await;
+                let _ = guard.flush().await;
+            }
+            Out::Udp(socket) => {
+                let _ = socket.send(packet).await;
+            }
+        }
+    }
 }
 
 // --- OpenVPN PRF + key derivation (independent copy) --------------------------
@@ -474,7 +496,7 @@ fn server_key_method_record(server_r1: &[u8; 32], server_r2: &[u8; 32]) -> Vec<u
 async fn serve_openvpn(tcp: tokio::net::TcpStream) {
     let _ = tcp.set_nodelay(true);
     let (mut read_half, write_half) = tcp.into_split();
-    let writer = Arc::new(Mutex::new(write_half));
+    let out = Out::Tcp(Arc::new(Mutex::new(write_half)));
 
     // Server session id + monotonic control message-id counter.
     let mut server_session = [0u8; 8];
@@ -498,7 +520,7 @@ async fn serve_openvpn(tcp: tokio::net::TcpStream) {
         message_id: send_msg.fetch_add(1, Ordering::Relaxed),
         payload: Vec::new(),
     };
-    write_frame(&writer, &server_reset.encode()).await;
+    out.send(&server_reset.encode()).await;
 
     // 2. Split the inbound packet stream into a control-payload queue (feeding
     //    the server-side TLS) and a data-packet queue.
@@ -528,7 +550,7 @@ async fn serve_openvpn(tcp: tokio::net::TcpStream) {
     // Outbound control sender: each TLS write becomes a P_CONTROL_V1 message.
     let (out_tx, mut out_rx) = mpsc::unbounded_channel::<Vec<u8>>();
     {
-        let writer = writer.clone();
+        let out = out.clone();
         let send_msg = send_msg.clone();
         tokio::spawn(async move {
             while let Some(bytes) = out_rx.recv().await {
@@ -540,7 +562,7 @@ async fn serve_openvpn(tcp: tokio::net::TcpStream) {
                     message_id: send_msg.fetch_add(1, Ordering::Relaxed),
                     payload: bytes,
                 };
-                write_frame(&writer, &packet.encode()).await;
+                out.send(&packet.encode()).await;
             }
         });
     }
@@ -594,7 +616,171 @@ async fn serve_openvpn(tcp: tokio::net::TcpStream) {
     drop(tls);
 
     // 6. Data phase: a smoltcp stack that accepts the inner TCP and echoes.
-    run_data_plane(keys, writer, &mut data_rx).await;
+    run_data_plane(keys, out, &mut data_rx).await;
+}
+
+/// Serve one fake OpenVPN client over a connected UDP socket. Mirrors
+/// [`serve_openvpn`] but over datagrams (no length prefix): it acks client
+/// control packets (so the client's retransmit timer stops) and, when
+/// `drop_first_reset` is set, ignores the client's first hard reset to force a
+/// retransmit.
+async fn serve_openvpn_udp(socket: Arc<UdpSocket>, drop_first_reset: bool) {
+    let mut buf = vec![0u8; 65535];
+
+    // Learn the client's address from its first datagram, then connect so we
+    // only ever talk to that peer.
+    let (mut n, peer) = socket.recv_from(&mut buf).await.expect("client hard reset datagram");
+    socket.connect(peer).await.expect("connect udp to client");
+    if drop_first_reset {
+        // Ignore the first hard reset; the client must retransmit it.
+        n = socket.recv(&mut buf).await.expect("retransmitted client hard reset");
+    }
+    let reset = ControlPacket::decode(&buf[..n]);
+    assert_eq!(
+        reset.opcode, P_CONTROL_HARD_RESET_CLIENT_V2,
+        "first packet is client reset"
+    );
+    let client_session = reset.local_session;
+
+    let mut server_session = [0u8; 8];
+    getrandom::fill(&mut server_session).unwrap();
+    let send_msg = Arc::new(AtomicU32::new(0));
+    let out = Out::Udp(socket.clone());
+
+    let server_reset = ControlPacket {
+        opcode: P_CONTROL_HARD_RESET_SERVER_V2,
+        local_session: server_session,
+        ack_ids: vec![reset.message_id],
+        ack_remote_session: client_session,
+        message_id: send_msg.fetch_add(1, Ordering::Relaxed),
+        payload: Vec::new(),
+    };
+    out.send(&server_reset.encode()).await;
+
+    // Inbound datagram reader: dispatch control payloads (feeding server TLS)
+    // and data packets, acking each reliable client control packet and
+    // de-duplicating retransmits so the TLS stream never sees duplicate bytes.
+    let (ctrl_tx, ctrl_rx) = mpsc::unbounded_channel::<Vec<u8>>();
+    let (data_tx, mut data_rx) = mpsc::unbounded_channel::<Vec<u8>>();
+    {
+        let socket = socket.clone();
+        let out = out.clone();
+        tokio::spawn(async move {
+            let mut buf = vec![0u8; 65535];
+            let mut forwarded: HashSet<u32> = HashSet::new();
+            loop {
+                let n = match socket.recv(&mut buf).await {
+                    Ok(n) => n,
+                    Err(_) => return,
+                };
+                if n == 0 {
+                    continue;
+                }
+                match opcode_of(buf[0]) {
+                    P_CONTROL_V1 => {
+                        let ctrl = ControlPacket::decode(&buf[..n]);
+                        let ack = ControlPacket {
+                            opcode: P_ACK_V1,
+                            local_session: server_session,
+                            ack_ids: vec![ctrl.message_id],
+                            ack_remote_session: client_session,
+                            message_id: 0,
+                            payload: Vec::new(),
+                        };
+                        out.send(&ack.encode()).await;
+                        if !ctrl.payload.is_empty() && forwarded.insert(ctrl.message_id) {
+                            let _ = ctrl_tx.send(ctrl.payload);
+                        }
+                    }
+                    P_CONTROL_HARD_RESET_CLIENT_V2 => {
+                        // A retransmitted hard reset: re-ack it.
+                        let ctrl = ControlPacket::decode(&buf[..n]);
+                        let ack = ControlPacket {
+                            opcode: P_ACK_V1,
+                            local_session: server_session,
+                            ack_ids: vec![ctrl.message_id],
+                            ack_remote_session: client_session,
+                            message_id: 0,
+                            payload: Vec::new(),
+                        };
+                        out.send(&ack.encode()).await;
+                    }
+                    P_ACK_V1 => {}
+                    P_DATA_V2 => {
+                        let _ = data_tx.send(buf[..n].to_vec());
+                    }
+                    _ => {}
+                }
+            }
+        });
+    }
+
+    // Outbound control sender: each TLS write becomes a P_CONTROL_V1 message.
+    let (out_tx, mut out_rx) = mpsc::unbounded_channel::<Vec<u8>>();
+    {
+        let out = out.clone();
+        let send_msg = send_msg.clone();
+        tokio::spawn(async move {
+            while let Some(bytes) = out_rx.recv().await {
+                let packet = ControlPacket {
+                    opcode: P_CONTROL_V1,
+                    local_session: server_session,
+                    ack_ids: Vec::new(),
+                    ack_remote_session: client_session,
+                    message_id: send_msg.fetch_add(1, Ordering::Relaxed),
+                    payload: bytes,
+                };
+                out.send(&packet.encode()).await;
+            }
+        });
+    }
+
+    let io = ControlIo {
+        inbound_rx: ctrl_rx,
+        leftover: Vec::new(),
+        leftover_pos: 0,
+        outbound_tx: out_tx,
+    };
+
+    let mut tls = tls_acceptor().accept(io).await.expect("server TLS handshake");
+
+    let (client_pre, client_r1, client_r2) = read_client_key_method(&mut tls).await;
+    let mut server_r1 = [0u8; 32];
+    let mut server_r2 = [0u8; 32];
+    getrandom::fill(&mut server_r1).unwrap();
+    getrandom::fill(&mut server_r2).unwrap();
+    tls.write_all(&server_key_method_record(&server_r1, &server_r2))
+        .await
+        .expect("write server key method");
+    tls.flush().await.ok();
+
+    let keys = derive_server_keys(
+        &client_pre,
+        &client_r1,
+        &client_r2,
+        &server_r1,
+        &server_r2,
+        client_session,
+        server_session,
+    );
+
+    let mut push_buf = Vec::new();
+    let mut chunk = [0u8; 512];
+    loop {
+        if push_buf.iter().any(|&b| b == 0) {
+            break;
+        }
+        let n = tls.read(&mut chunk).await.expect("read push request");
+        assert_ne!(n, 0, "TLS closed before push request");
+        push_buf.extend_from_slice(&chunk[..n]);
+    }
+    let push_reply =
+        format!("PUSH_REPLY,ifconfig {CLIENT_TUN_IP} 255.255.255.0,peer-id {PEER_ID},route-gateway 10.8.0.1\0");
+    tls.write_all(push_reply.as_bytes()).await.expect("write push reply");
+    tls.flush().await.ok();
+    drop(tls);
+
+    run_data_plane(keys, out, &mut data_rx).await;
 }
 
 /// Read one length-prefixed OpenVPN packet, or `None` at EOF.
@@ -613,11 +799,7 @@ where
     Some(packet)
 }
 
-async fn run_data_plane(
-    keys: ServerKeys,
-    writer: Arc<Mutex<OwnedWriteHalf>>,
-    data_rx: &mut mpsc::UnboundedReceiver<Vec<u8>>,
-) {
+async fn run_data_plane(keys: ServerKeys, out: Out, data_rx: &mut mpsc::UnboundedReceiver<Vec<u8>>) {
     let start = Instant::now();
     let mut phy = Phy {
         rx: VecDeque::new(),
@@ -663,14 +845,7 @@ async fn run_data_plane(
         while let Some(pkt) = phy.tx.pop_front() {
             send_pid = send_pid.wrapping_add(1);
             let sealed = keys.seal(send_pid, &pkt);
-            let mut header = Vec::with_capacity(2 + sealed.len());
-            header.extend_from_slice(&(sealed.len() as u16).to_be_bytes());
-            header.extend_from_slice(&sealed);
-            let mut guard = writer.lock().await;
-            if guard.write_all(&header).await.is_err() {
-                return;
-            }
-            let _ = guard.flush().await;
+            out.send(&sealed).await;
         }
 
         let delay = iface
@@ -758,4 +933,61 @@ async fn openvpn_tcp_round_trips_a_large_payload() {
     rd.read_exact(&mut got).await.unwrap();
     writer.await.unwrap();
     assert_eq!(got, payload);
+}
+
+/// Stand up a fake UDP server on an ephemeral port and return a parsed client
+/// config (`proto udp`) pointing at it. `drop_first_reset` makes the server
+/// ignore the client's first hard reset to exercise control retransmission.
+async fn start_udp_server(drop_first_reset: bool) -> OpenVpnOutboundConfig {
+    let socket = UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
+    let addr = socket.local_addr().unwrap();
+    let socket = Arc::new(socket);
+    tokio::spawn(serve_openvpn_udp(socket, drop_first_reset));
+
+    let ca = TEST_CA.replace('\n', "\\n");
+    let yaml = format!(
+        "name: o\ntype: openvpn\nserver: 127.0.0.1\nport: {}\nproto: udp\nusername: u\npassword: p\ncipher: AES-256-GCM\nca: \"{}\"\n",
+        addr.port(),
+        ca,
+    );
+    let entry: ProxyEntry = serde_yaml_ng::from_str(&yaml).unwrap();
+    OpenVpnOutboundConfig::from_proxy(&entry).unwrap()
+}
+
+#[tokio::test]
+async fn openvpn_udp_round_trips_a_payload() {
+    let config = start_udp_server(false).await;
+    let target = TargetAddr::Ip(SocketAddr::new(IpAddr::V4(INNER_IP), INNER_PORT));
+
+    let mut stream = tokio::time::timeout(Duration::from_secs(20), openvpn::connect(&config, &target))
+        .await
+        .expect("connect did not time out")
+        .expect("openvpn connect");
+
+    let payload = b"hello openvpn udp tunnel";
+    stream.write_all(payload).await.unwrap();
+
+    let mut got = vec![0u8; payload.len()];
+    stream.read_exact(&mut got).await.unwrap();
+    assert_eq!(&got, payload);
+}
+
+#[tokio::test]
+async fn openvpn_udp_recovers_from_a_dropped_hard_reset() {
+    // The server drops the client's first hard reset; the client's control
+    // channel must retransmit it (after ~1s) for the handshake to complete.
+    let config = start_udp_server(true).await;
+    let target = TargetAddr::Ip(SocketAddr::new(IpAddr::V4(INNER_IP), INNER_PORT));
+
+    let mut stream = tokio::time::timeout(Duration::from_secs(20), openvpn::connect(&config, &target))
+        .await
+        .expect("connect did not time out")
+        .expect("openvpn connect");
+
+    let payload = b"udp retransmit recovery";
+    stream.write_all(payload).await.unwrap();
+
+    let mut got = vec![0u8; payload.len()];
+    stream.read_exact(&mut got).await.unwrap();
+    assert_eq!(&got, payload);
 }

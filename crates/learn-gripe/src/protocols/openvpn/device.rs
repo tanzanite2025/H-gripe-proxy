@@ -1,4 +1,4 @@
-//! Per-config OpenVPN tunnel device: TCP connect, the hard-reset / TLS /
+//! Per-config OpenVPN tunnel device: TCP/UDP connect, the hard-reset / TLS /
 //! key-method-2 / push handshake, and the registry that lets concurrent
 //! connections share one live tunnel.
 
@@ -6,15 +6,16 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use anyhow::{Context, Result, anyhow, bail};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWriteExt};
-use tokio::net::TcpStream;
+use tokio::net::{TcpStream, UdpSocket};
 use tokio::sync::{mpsc, oneshot};
 use tokio_rustls::TlsConnector;
 
 use super::OpenVpnOutboundConfig;
-use super::control::{ControlChannel, PacketWriter, run_mux, spawn_tls_bridge};
+use super::control::{ControlChannel, PacketWriter, run_mux, run_mux_udp, spawn_tls_bridge};
 use super::data::DataChannel;
 use super::device_loop::{CHANNEL_DEPTH, DeviceLoop};
 use super::keymethod::{
@@ -24,6 +25,10 @@ use super::packet::{P_CONTROL_HARD_RESET_SERVER_V2, new_session_id};
 use super::push::{PUSH_REQUEST, PushReply, parse_push_reply};
 use super::stream::OvpnTcpStream;
 use super::tls;
+
+/// How long the handshake waits for a control-channel reply on UDP before
+/// resending unacked reliable control packets (OpenVPN's default is ~1s).
+const CONTROL_RETRANSMIT_DELAY: Duration = Duration::from_secs(1);
 
 /// Registry key identifying a tunnel configuration (server endpoint + auth).
 type OvpnKey = String;
@@ -72,34 +77,59 @@ impl OpenVpnDevice {
         Ok(device)
     }
 
-    /// Connect the TCP transport and run the full OpenVPN client handshake, then
-    /// spawn the netstack poll loop bound to the pushed tunnel address.
+    /// Connect the tunnel transport (TCP or UDP) and run the full OpenVPN client
+    /// handshake, then spawn the netstack poll loop bound to the pushed tunnel
+    /// address.
     async fn spawn(config: &OpenVpnOutboundConfig) -> Result<Self> {
         let endpoint = tokio::net::lookup_host((config.server.as_str(), config.port))
             .await
             .with_context(|| format!("openvpn: resolve {}:{}", config.server, config.port))?
             .next()
             .ok_or_else(|| anyhow!("openvpn: no addresses for {}:{}", config.server, config.port))?;
-        let tcp = TcpStream::connect(endpoint)
-            .await
-            .with_context(|| format!("openvpn: connect TCP to {endpoint}"))?;
-        let _ = tcp.set_nodelay(true);
-        let (read_half, write_half) = tcp.into_split();
 
-        let writer = Arc::new(PacketWriter::new(write_half));
         let (control_tx, control_rx) = mpsc::unbounded_channel::<Vec<u8>>();
         let (data_tx, data_rx) = mpsc::unbounded_channel::<Vec<u8>>();
-        tokio::spawn(run_mux(read_half, control_tx, data_tx));
+        let writer = if config.udp {
+            let bind: SocketAddr = if endpoint.is_ipv4() {
+                (std::net::Ipv4Addr::UNSPECIFIED, 0).into()
+            } else {
+                (std::net::Ipv6Addr::UNSPECIFIED, 0).into()
+            };
+            let socket = UdpSocket::bind(bind)
+                .await
+                .with_context(|| format!("openvpn: bind UDP for {endpoint}"))?;
+            socket
+                .connect(endpoint)
+                .await
+                .with_context(|| format!("openvpn: connect UDP to {endpoint}"))?;
+            let socket = Arc::new(socket);
+            tokio::spawn(run_mux_udp(socket.clone(), control_tx, data_tx));
+            Arc::new(PacketWriter::udp(socket))
+        } else {
+            let tcp = TcpStream::connect(endpoint)
+                .await
+                .with_context(|| format!("openvpn: connect TCP to {endpoint}"))?;
+            let _ = tcp.set_nodelay(true);
+            let (read_half, write_half) = tcp.into_split();
+            tokio::spawn(run_mux(read_half, control_tx, data_tx));
+            Arc::new(PacketWriter::tcp(write_half))
+        };
 
         let local_session = new_session_id()?;
         let control = Arc::new(ControlChannel::new(writer.clone(), local_session, control_rx));
+
+        // On UDP the transport is lossy, so drive control retransmission on a
+        // timer until the handshake completes (a no-op on the lossless TCP path).
+        let handshake_done = Arc::new(AtomicBool::new(false));
+        if config.udp {
+            spawn_retransmit(control.clone(), handshake_done.clone());
+        }
 
         // 1. Reliable hard-reset exchange (before the TLS bridge starts reading).
         control.send_reset().await.context("openvpn: send hard reset")?;
         wait_server_reset(&control).await?;
 
         // 2. TLS handshake tunnelled over P_CONTROL_V1 messages.
-        let handshake_done = Arc::new(AtomicBool::new(false));
         let io = spawn_tls_bridge(control.clone(), handshake_done.clone());
         let tls_config = tls::build_client_config(
             &config.ca_pem,
@@ -113,7 +143,7 @@ impl OpenVpnDevice {
             .map_err(|e| anyhow!("openvpn: control-channel TLS handshake: {e}"))?;
 
         // 3. key-method-2 exchange + directional key derivation.
-        let options = options_string(true, &config.cipher, "SHA1");
+        let options = options_string(!config.udp, &config.cipher, "SHA1");
         let info = peer_info(&config.cipher);
         let client_record = ClientKeyMethod2::new(
             options,
@@ -166,6 +196,22 @@ impl OpenVpnDevice {
             .await
             .map_err(|_| anyhow!("openvpn: connection to {dst} failed (connect timeout)"))
     }
+}
+
+/// Periodically resend unacked reliable control packets until `handshake_done`
+/// is set. Used on UDP transports, where control packets can be lost.
+fn spawn_retransmit(control: Arc<ControlChannel>, handshake_done: Arc<AtomicBool>) {
+    tokio::spawn(async move {
+        while !handshake_done.load(Ordering::Relaxed) {
+            tokio::time::sleep(CONTROL_RETRANSMIT_DELAY).await;
+            if handshake_done.load(Ordering::Relaxed) {
+                break;
+            }
+            if control.retransmit_pending().await.is_err() {
+                break;
+            }
+        }
+    });
 }
 
 /// Read reliable control packets until the server's hard reset arrives, acking
