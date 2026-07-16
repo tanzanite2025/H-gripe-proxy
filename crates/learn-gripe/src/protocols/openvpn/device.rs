@@ -17,7 +17,7 @@ use tokio_rustls::TlsConnector;
 use super::OpenVpnOutboundConfig;
 use super::control::{ControlChannel, PacketWriter, run_mux, run_mux_udp, spawn_tls_bridge};
 use super::data::DataChannel;
-use super::device_loop::{CHANNEL_DEPTH, DeviceLoop};
+use super::device_loop::{CHANNEL_DEPTH, DeviceLoop, Keepalive};
 use super::keymethod::{
     ClientKeyMethod2, ServerKeyMethod2, derive_client_key_material, options_string, parse_server_key_method2, peer_info,
 };
@@ -189,7 +189,19 @@ impl OpenVpnDevice {
         // 5. Bring up the data channel + netstack poll loop.
         let data = DataChannel::new(&keys, &config.cipher, push.peer_id)?;
         let (commands_tx, commands_rx) = mpsc::channel::<Command>(CHANNEL_DEPTH);
-        let device_loop = DeviceLoop::new(data, writer, data_rx, commands_rx, config.mtu as usize, push.local_v4);
+        let keepalive = Keepalive {
+            ping_interval: push.ping_interval,
+            ping_restart: push.ping_restart,
+        };
+        let device_loop = DeviceLoop::new(
+            data,
+            writer,
+            data_rx,
+            commands_rx,
+            config.mtu as usize,
+            push.local_v4,
+            keepalive,
+        );
         tokio::spawn(device_loop.run());
 
         Ok(Self { commands: commands_tx })

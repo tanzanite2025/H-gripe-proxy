@@ -578,6 +578,21 @@ fn now_since(start: Instant) -> SmolInstant {
     SmolInstant::from_micros(start.elapsed().as_micros() as i64)
 }
 
+/// OpenVPN's fixed data-channel keepalive ping payload (independent copy).
+const SERVER_PING: [u8; 16] = [
+    0x2a, 0x18, 0x7b, 0xf3, 0x64, 0x1e, 0xb4, 0xcb, 0x07, 0xed, 0x2d, 0x0a, 0x98, 0x1f, 0xc7, 0x48,
+];
+
+/// Per-connection knobs for the fake server.
+#[derive(Clone, Default)]
+struct ServerOpts {
+    /// Extra options appended verbatim to the `PUSH_REPLY` (leading comma
+    /// included), e.g. `",keepalive 1 60"`.
+    push_extra: String,
+    /// Notified once for every decrypted data-channel ping from the client.
+    ping_seen: Option<mpsc::UnboundedSender<()>>,
+}
+
 // --- the fake OpenVPN server --------------------------------------------------
 
 fn tls_acceptor() -> TlsAcceptor {
@@ -656,7 +671,7 @@ fn server_key_method_record(server_r1: &[u8; 32], server_r2: &[u8; 32]) -> Vec<u
 }
 
 /// Serve one fake OpenVPN client connection end to end.
-async fn serve_openvpn(tcp: tokio::net::TcpStream, wrap: ServerWrap) {
+async fn serve_openvpn(tcp: tokio::net::TcpStream, wrap: ServerWrap, opts: ServerOpts) {
     let _ = tcp.set_nodelay(true);
     let (mut read_half, write_half) = tcp.into_split();
     let out = Out::Tcp(Arc::new(Mutex::new(write_half)));
@@ -782,14 +797,16 @@ async fn serve_openvpn(tcp: tokio::net::TcpStream, wrap: ServerWrap) {
         assert_ne!(n, 0, "TLS closed before push request");
         push_buf.extend_from_slice(&chunk[..n]);
     }
-    let push_reply =
-        format!("PUSH_REPLY,ifconfig {CLIENT_TUN_IP} 255.255.255.0,peer-id {PEER_ID},route-gateway 10.8.0.1\0");
+    let push_reply = format!(
+        "PUSH_REPLY,ifconfig {CLIENT_TUN_IP} 255.255.255.0,peer-id {PEER_ID},route-gateway 10.8.0.1{}\0",
+        opts.push_extra
+    );
     tls.write_all(push_reply.as_bytes()).await.expect("write push reply");
     tls.flush().await.ok();
     drop(tls);
 
     // 6. Data phase: a smoltcp stack that accepts the inner TCP and echoes.
-    run_data_plane(keys, out, &mut data_rx).await;
+    run_data_plane(keys, out, &mut data_rx, opts.ping_seen).await;
 }
 
 /// Serve one fake OpenVPN client over a connected UDP socket. Mirrors
@@ -797,7 +814,7 @@ async fn serve_openvpn(tcp: tokio::net::TcpStream, wrap: ServerWrap) {
 /// control packets (so the client's retransmit timer stops) and, when
 /// `drop_first_reset` is set, ignores the client's first hard reset to force a
 /// retransmit.
-async fn serve_openvpn_udp(socket: Arc<UdpSocket>, drop_first_reset: bool, wrap: ServerWrap) {
+async fn serve_openvpn_udp(socket: Arc<UdpSocket>, drop_first_reset: bool, wrap: ServerWrap, opts: ServerOpts) {
     let mut buf = vec![0u8; 65535];
 
     // Learn the client's address from its first datagram, then connect so we
@@ -957,13 +974,15 @@ async fn serve_openvpn_udp(socket: Arc<UdpSocket>, drop_first_reset: bool, wrap:
         assert_ne!(n, 0, "TLS closed before push request");
         push_buf.extend_from_slice(&chunk[..n]);
     }
-    let push_reply =
-        format!("PUSH_REPLY,ifconfig {CLIENT_TUN_IP} 255.255.255.0,peer-id {PEER_ID},route-gateway 10.8.0.1\0");
+    let push_reply = format!(
+        "PUSH_REPLY,ifconfig {CLIENT_TUN_IP} 255.255.255.0,peer-id {PEER_ID},route-gateway 10.8.0.1{}\0",
+        opts.push_extra
+    );
     tls.write_all(push_reply.as_bytes()).await.expect("write push reply");
     tls.flush().await.ok();
     drop(tls);
 
-    run_data_plane(keys, out, &mut data_rx).await;
+    run_data_plane(keys, out, &mut data_rx, opts.ping_seen).await;
 }
 
 /// Read one length-prefixed OpenVPN packet, or `None` at EOF.
@@ -982,7 +1001,12 @@ where
     Some(packet)
 }
 
-async fn run_data_plane(keys: ServerKeys, out: Out, data_rx: &mut mpsc::UnboundedReceiver<Vec<u8>>) {
+async fn run_data_plane(
+    keys: ServerKeys,
+    out: Out,
+    data_rx: &mut mpsc::UnboundedReceiver<Vec<u8>>,
+    ping_seen: Option<mpsc::UnboundedSender<()>>,
+) {
     let start = Instant::now();
     let mut phy = Phy {
         rx: VecDeque::new(),
@@ -1057,7 +1081,11 @@ async fn run_data_plane(keys: ServerKeys, out: Out, data_rx: &mut mpsc::Unbounde
             pkt = data_rx.recv() => match pkt {
                 Some(pkt) => {
                     if let Some(plain) = keys.open(&pkt) {
-                        if !plain.is_empty() {
+                        if plain == SERVER_PING {
+                            if let Some(tx) = &ping_seen {
+                                let _ = tx.send(());
+                            }
+                        } else if !plain.is_empty() {
                             phy.rx.push_back(plain);
                         }
                     }
@@ -1076,11 +1104,15 @@ async fn run_data_plane(keys: ServerKeys, out: Out, data_rx: &mut mpsc::Unbounde
 /// selects the server's control-channel protection; `extra_yaml` appends the
 /// matching client config lines.
 async fn start_server_with(wrap: ServerWrap, extra_yaml: &str) -> OpenVpnOutboundConfig {
+    start_server_opts(wrap, extra_yaml, ServerOpts::default()).await
+}
+
+async fn start_server_opts(wrap: ServerWrap, extra_yaml: &str, opts: ServerOpts) -> OpenVpnOutboundConfig {
     let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
     let addr = listener.local_addr().unwrap();
     tokio::spawn(async move {
         while let Ok((tcp, _)) = listener.accept().await {
-            tokio::spawn(serve_openvpn(tcp, wrap.clone()));
+            tokio::spawn(serve_openvpn(tcp, wrap.clone(), opts.clone()));
         }
     });
 
@@ -1153,7 +1185,7 @@ async fn start_udp_server_with(drop_first_reset: bool, wrap: ServerWrap, extra_y
     let socket = UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
     let addr = socket.local_addr().unwrap();
     let socket = Arc::new(socket);
-    tokio::spawn(serve_openvpn_udp(socket, drop_first_reset, wrap));
+    tokio::spawn(serve_openvpn_udp(socket, drop_first_reset, wrap, ServerOpts::default()));
 
     let ca = TEST_CA.replace('\n', "\\n");
     let yaml = format!(
@@ -1307,6 +1339,62 @@ async fn openvpn_udp_round_trips_with_tls_auth() {
     let mut got = vec![0u8; payload.len()];
     stream.read_exact(&mut got).await.unwrap();
     assert_eq!(&got, payload);
+}
+
+#[tokio::test]
+async fn openvpn_sends_keepalive_pings_when_idle() {
+    // The server pushes `ping 1`; an idle client must emit the fixed 16-byte
+    // data-channel ping over the AEAD data channel within a couple of seconds.
+    let (ping_tx, mut ping_rx) = mpsc::unbounded_channel::<()>();
+    let opts = ServerOpts {
+        push_extra: ",ping 1".into(),
+        ping_seen: Some(ping_tx),
+    };
+    let config = start_server_opts(ServerWrap::None, "", opts).await;
+    let target = TargetAddr::Ip(SocketAddr::new(IpAddr::V4(INNER_IP), INNER_PORT));
+
+    let _stream = tokio::time::timeout(Duration::from_secs(20), openvpn::connect(&config, &target))
+        .await
+        .expect("connect did not time out")
+        .expect("openvpn connect");
+
+    tokio::time::timeout(Duration::from_secs(10), ping_rx.recv())
+        .await
+        .expect("client never sent a keepalive ping")
+        .expect("ping channel closed");
+}
+
+#[tokio::test]
+async fn openvpn_tears_down_after_ping_restart_expires() {
+    // The server pushes `ping-restart 1` and then goes silent; the client must
+    // tear the tunnel down (upstream's SIGUSR1 restart), surfacing as EOF /
+    // error on the relayed stream instead of hanging forever.
+    let opts = ServerOpts {
+        push_extra: ",ping-restart 1".into(),
+        ping_seen: None,
+    };
+    let config = start_server_opts(ServerWrap::None, "", opts).await;
+    let target = TargetAddr::Ip(SocketAddr::new(IpAddr::V4(INNER_IP), INNER_PORT));
+
+    let mut stream = tokio::time::timeout(Duration::from_secs(20), openvpn::connect(&config, &target))
+        .await
+        .expect("connect did not time out")
+        .expect("openvpn connect");
+
+    // The tunnel works while traffic flows...
+    let payload = b"before restart";
+    stream.write_all(payload).await.unwrap();
+    let mut got = vec![0u8; payload.len()];
+    stream.read_exact(&mut got).await.unwrap();
+    assert_eq!(&got, payload);
+
+    // ...then, once the server goes silent past ping-restart, the device loop
+    // exits and the relayed stream ends rather than blocking.
+    let mut buf = [0u8; 16];
+    let ended = tokio::time::timeout(Duration::from_secs(10), stream.read(&mut buf))
+        .await
+        .expect("stream did not end after ping-restart");
+    assert!(matches!(ended, Ok(0) | Err(_)), "expected EOF or error, got {ended:?}");
 }
 
 #[tokio::test]

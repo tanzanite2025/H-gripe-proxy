@@ -31,8 +31,12 @@
 //!   control packet (`auth` digest SHA1/SHA256/SHA512, `key-direction` 0/1 or
 //!   bidirectional); `tls-crypt` encrypts + authenticates them (AES-256-CTR +
 //!   HMAC-SHA256, fixed client direction). See [`tlswrap`].
-//! - No compression and no keepalive ping generation. Unsupported option
-//!   combinations fail explicitly rather than silently degrading.
+//! - **Keepalive** from the pushed `keepalive` / `ping` / `ping-restart`
+//!   options: the device loop sends the fixed data-channel ping when the send
+//!   side is idle past the ping interval, and tears the tunnel down (upstream's
+//!   `ping-restart`) after that much receive-side silence.
+//! - No compression. Unsupported option combinations fail explicitly rather
+//!   than silently degrading.
 
 mod control;
 mod data;

@@ -12,7 +12,7 @@ use smoltcp::socket::{tcp, udp};
 use smoltcp::wire::IpEndpoint;
 use tokio::sync::{Notify, mpsc, oneshot};
 
-use super::data::{DataChannel, is_ping};
+use super::data::{DataChannel, PING_PACKET, is_ping};
 use super::device::Command;
 use super::netstack::{OvPhy, build_interface, ip_address, is_dead, smol_now};
 use super::stream::{OvpnTcpStream, OvpnUdpAssoc};
@@ -31,6 +31,17 @@ const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 /// Upper bound on how long the device poll loop sleeps between wakeups.
 const MAX_POLL_SLEEP: Duration = Duration::from_millis(250);
 
+/// Keepalive timers negotiated during the handshake (from the pushed
+/// `keepalive` / `ping` / `ping-restart` options).
+#[derive(Default, Clone, Copy)]
+pub(super) struct Keepalive {
+    /// Send a data-channel ping after this much send-side idle time.
+    pub(super) ping_interval: Option<Duration>,
+    /// Exit the loop (tearing the tunnel down) after this much receive-side
+    /// silence, mirroring upstream's `ping-restart` SIGUSR1.
+    pub(super) ping_restart: Option<Duration>,
+}
+
 /// Wakers parked by streams whose write channel filled, woken once the loop has
 /// drained their bytes into the smoltcp sockets.
 pub(super) type WriterWakers = Arc<Mutex<Vec<Waker>>>;
@@ -48,6 +59,9 @@ pub(super) struct DeviceLoop {
     next_port: u16,
     wake: Arc<Notify>,
     writer_wakers: WriterWakers,
+    keepalive: Keepalive,
+    last_send: Instant,
+    last_recv: Instant,
 }
 
 /// Bridge state for one relayed TCP flow, owned by the poll loop.
@@ -86,7 +100,9 @@ impl DeviceLoop {
         commands: mpsc::Receiver<Command>,
         mtu: usize,
         local_v4: Ipv4Addr,
+        keepalive: Keepalive,
     ) -> Self {
+        let now = Instant::now();
         Self {
             data,
             writer,
@@ -99,6 +115,9 @@ impl DeviceLoop {
             next_port: 1024,
             wake: Arc::new(Notify::new()),
             writer_wakers: Arc::new(Mutex::new(Vec::new())),
+            keepalive,
+            last_send: now,
+            last_recv: now,
         }
     }
 
@@ -115,11 +134,15 @@ impl DeviceLoop {
             self.service_udp_flows(&mut sockets);
             self.wake_writers();
             self.encapsulate_tx(&mut phy).await;
+            if !self.service_keepalive().await {
+                return; // ping-restart expired: tear the tunnel down
+            }
 
             let delay = iface
                 .poll_delay(smol_now(start), &sockets)
                 .map(|d| Duration::from_micros(d.total_micros()))
                 .map_or(MAX_POLL_SLEEP, |d| d.min(MAX_POLL_SLEEP));
+            let delay = self.keepalive_deadline().map_or(delay, |d| d.min(delay));
 
             tokio::select! {
                 _ = self.wake.notified() => {}
@@ -381,10 +404,50 @@ impl DeviceLoop {
     /// Encrypt every IP packet smoltcp queued into a `P_DATA_V2` packet and write
     /// it to the server. Failures drop the packet (the inner TCP retransmits).
     async fn encapsulate_tx(&mut self, phy: &mut OvPhy) {
+        let mut sent = false;
         while let Some(pkt) = phy.tx.pop_front() {
             if let Ok(sealed) = self.data.encrypt(&pkt) {
                 let _ = self.writer.write_packet(&sealed).await;
+                sent = true;
             }
+        }
+        if sent {
+            self.last_send = Instant::now();
+        }
+    }
+
+    /// Enforce the negotiated keepalive timers: send a data-channel ping once
+    /// the send side has been idle for `ping_interval`, and return `false`
+    /// (tearing the tunnel down) once nothing has been received for
+    /// `ping_restart`.
+    async fn service_keepalive(&mut self) -> bool {
+        let now = Instant::now();
+        if let Some(restart) = self.keepalive.ping_restart
+            && now.duration_since(self.last_recv) >= restart
+        {
+            return false;
+        }
+        if let Some(interval) = self.keepalive.ping_interval
+            && now.duration_since(self.last_send) >= interval
+        {
+            if let Ok(sealed) = self.data.encrypt(&PING_PACKET) {
+                let _ = self.writer.write_packet(&sealed).await;
+            }
+            self.last_send = now;
+        }
+        true
+    }
+
+    /// Time until the next keepalive timer fires, so the poll loop wakes up in
+    /// time to service it.
+    fn keepalive_deadline(&self) -> Option<Duration> {
+        let now = Instant::now();
+        let until = |last: Instant, period: Duration| period.saturating_sub(now.duration_since(last));
+        let ping = self.keepalive.ping_interval.map(|p| until(self.last_send, p));
+        let restart = self.keepalive.ping_restart.map(|p| until(self.last_recv, p));
+        match (ping, restart) {
+            (Some(a), Some(b)) => Some(a.min(b)),
+            (a, b) => a.or(b),
         }
     }
 
@@ -392,6 +455,7 @@ impl DeviceLoop {
     /// dropping keepalive pings and anything that fails to decrypt / replays.
     fn decapsulate(&mut self, packet: Vec<u8>, phy: &mut OvPhy) {
         if let Ok(plain) = self.data.decrypt(&packet) {
+            self.last_recv = Instant::now();
             if !plain.is_empty() && !is_ping(&plain) {
                 phy.rx.push_back(plain);
                 self.wake.notify_one();
