@@ -18,7 +18,7 @@ use anyhow::{Context, Result};
 use bytes::Bytes;
 use h2::client;
 use h2::{RecvStream, SendStream};
-use http::Request;
+use http::{Request, StatusCode};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 
 pub(crate) fn to_io_err<E: std::fmt::Display>(e: E) -> io::Error {
@@ -29,6 +29,17 @@ pub(crate) fn to_io_err<E: std::fmt::Display>(e: E) -> io::Error {
 /// full-duplex body), await the response headers and return a byte-stream view
 /// over the request/response bodies.
 pub(crate) async fn open<S>(stream: S, request: Request<()>) -> Result<H2ByteStream>
+where
+    S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+{
+    Ok(open_with_status(stream, request).await?.0)
+}
+
+/// Like [`open`], but also returns the response status. Callers that treat the
+/// stream as a tunnel (e.g. TrustTunnel's `CONNECT`, where only `200` means the
+/// tunnel is open) inspect the status; [`open`] discards it for transports that
+/// carry bytes regardless of the response code.
+pub(crate) async fn open_with_status<S>(stream: S, request: Request<()>) -> Result<(H2ByteStream, StatusCode)>
 where
     S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
@@ -46,9 +57,10 @@ where
     let mut send_request = send_request.ready().await.context("h2: connection not ready")?;
     let (response, send_stream) = send_request.send_request(request, false).context("h2: send request")?;
     let response = response.await.context("h2: await response headers")?;
+    let status = response.status();
     let recv_stream = response.into_body();
 
-    Ok(H2ByteStream::new(send_stream, recv_stream))
+    Ok((H2ByteStream::new(send_stream, recv_stream), status))
 }
 
 /// Adapts a single HTTP/2 stream into a contiguous byte stream by passing the

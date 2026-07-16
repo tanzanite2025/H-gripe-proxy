@@ -181,6 +181,7 @@ pub(crate) async fn run_egress<S: ReplySink + Send + 'static>(
         UdpEgress::Ssr(config) => run_ssr_egress(config, target, rx, sink, idle).await,
         UdpEgress::Snell(config) => run_snell_egress(config, target, rx, sink, idle).await,
         UdpEgress::Sudoku(config) => run_sudoku_egress(config, target, rx, sink, idle).await,
+        UdpEgress::TrustTunnel(config) => run_trusttunnel_egress(config, target, rx, sink, idle).await,
         UdpEgress::Hysteria2(config) => run_hysteria2_egress(config, target, rx, sink, idle).await,
         UdpEgress::Masque(config) => run_masque_egress(config, target, rx, sink, idle).await,
         UdpEgress::Tuic(config) => run_tuic_egress(config, target, rx, sink, idle).await,
@@ -332,6 +333,33 @@ async fn run_sudoku_egress<S: ReplySink>(
     idle: Option<Duration>,
 ) -> Result<()> {
     let assoc = crate::protocols::sudoku::SudokuUdpAssoc::connect(&config, &target).await?;
+    loop {
+        tokio::select! {
+            maybe = rx.recv() => match maybe {
+                Some(payload) => assoc.send(&payload).await?,
+                None => return Ok(()),
+            },
+            res = assoc.recv() => {
+                let payload = res?;
+                if !sink.deliver(&payload).await {
+                    return Ok(());
+                }
+            }
+            _ = idle_elapsed(idle) => return Ok(()),
+        }
+    }
+}
+
+/// TrustTunnel UDP egress: relay datagrams over a `_udp2` HTTP/2 CONNECT tunnel.
+/// Each datagram is one length-prefixed frame naming the resolved peer address.
+async fn run_trusttunnel_egress<S: ReplySink>(
+    config: Box<crate::protocols::trusttunnel::TrustTunnelOutboundConfig>,
+    target: TargetAddr,
+    mut rx: mpsc::Receiver<Vec<u8>>,
+    sink: S,
+    idle: Option<Duration>,
+) -> Result<()> {
+    let assoc = crate::protocols::trusttunnel::TrustTunnelUdpAssoc::connect(&config, &target).await?;
     loop {
         tokio::select! {
             maybe = rx.recv() => match maybe {
@@ -515,6 +543,7 @@ impl ProxyFraming {
             | UdpEgress::Ssr(_)
             | UdpEgress::Snell(_)
             | UdpEgress::Sudoku(_)
+            | UdpEgress::TrustTunnel(_)
             | UdpEgress::Hysteria2(_)
             | UdpEgress::Masque(_)
             | UdpEgress::Tuic(_)

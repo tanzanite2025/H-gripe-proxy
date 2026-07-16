@@ -15,6 +15,7 @@ use crate::protocols::ssh::{self, SshOutboundConfig};
 use crate::protocols::ssr::{self, SsrOutboundConfig};
 use crate::protocols::sudoku::{self, SudokuOutboundConfig};
 use crate::protocols::trojan::{self, TrojanOutboundConfig};
+use crate::protocols::trusttunnel::{self, TrustTunnelOutboundConfig};
 use crate::protocols::tuic::{self, TuicOutboundConfig};
 use crate::protocols::vless::{self, VlessOutboundConfig};
 use crate::protocols::vmess::{self, VmessOutboundConfig};
@@ -117,6 +118,7 @@ impl_tcp_outbound!(GostRelayOutboundConfig, "gost-relay", gost_relay::connect);
 impl_tcp_outbound!(MieruOutboundConfig, "mieru", mieru::connect);
 impl_tcp_outbound!(SsrOutboundConfig, "ssr", ssr::connect);
 impl_tcp_outbound!(SudokuOutboundConfig, "sudoku", sudoku::connect);
+impl_tcp_outbound!(TrustTunnelOutboundConfig, "trusttunnel", trusttunnel::connect);
 impl_tcp_outbound!(WireGuardOutboundConfig, "wireguard", wireguard::connect);
 
 /// Establish an outbound connection to `target` according to `mode` and return
@@ -186,6 +188,9 @@ pub enum UdpEgress {
     /// Sudoku carries datagrams over a `StartUoT` UDP-over-TCP session, one
     /// `addr_len | payload_len | addr | payload` frame per packet.
     Sudoku(Box<SudokuOutboundConfig>),
+    /// TrustTunnel carries datagrams over a `_udp2` HTTP/2 CONNECT tunnel, one
+    /// length-prefixed peer-addressed frame per packet.
+    TrustTunnel(Box<TrustTunnelOutboundConfig>),
     /// WireGuard relays each datagram through a userspace smoltcp UDP socket
     /// whose IP packets ride the Noise tunnel (no proxy stream).
     WireGuard(Box<WireGuardOutboundConfig>),
@@ -228,6 +233,10 @@ fn udp_egress_for(mode: &OutboundMode) -> Option<UdpEgress> {
         // Sudoku UDP rides a `StartUoT` UDP-over-TCP carrier on the same tunnel
         // the TCP data plane uses.
         OutboundMode::Sudoku(config) => Some(UdpEgress::Sudoku(config.clone())),
+        // TrustTunnel UDP rides a second `_udp2` HTTP/2 CONNECT, gated on the
+        // proxy advertising UDP (`udp: true`).
+        OutboundMode::TrustTunnel(config) if config.udp => Some(UdpEgress::TrustTunnel(config.clone())),
+        OutboundMode::TrustTunnel(_) => None,
         OutboundMode::WireGuard(config) => Some(UdpEgress::WireGuard(config.clone())),
         // `Routed` is resolved per datagram by `resolve_udp_egress` before it
         // reaches here; it has no egress of its own.
@@ -278,6 +287,7 @@ pub async fn connect_proxy_udp(egress: &UdpEgress, target: &TargetAddr) -> Resul
         | UdpEgress::Ssr(_)
         | UdpEgress::Snell(_)
         | UdpEgress::Sudoku(_)
+        | UdpEgress::TrustTunnel(_)
         | UdpEgress::Hysteria2(_)
         | UdpEgress::Masque(_)
         | UdpEgress::Tuic(_)

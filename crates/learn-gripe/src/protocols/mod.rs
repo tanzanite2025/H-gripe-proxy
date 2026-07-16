@@ -21,6 +21,7 @@ pub mod ssh;
 pub mod ssr;
 pub mod sudoku;
 pub mod trojan;
+pub mod trusttunnel;
 pub mod tuic;
 pub mod vision;
 pub mod vless;

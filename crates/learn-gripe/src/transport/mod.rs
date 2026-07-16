@@ -254,7 +254,7 @@ const DEFAULT_ECH_RESOLVER: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::ne
 /// holds the `ech` SvcParam (fetched at connection time). When `enable` is set
 /// at least one of the two must be present, so a missing config is rejected
 /// rather than silently downgrading to a cleartext SNI.
-fn build_ech_config(ech: Option<&EchOpts>, proto: &str) -> Result<Option<EchClientConfig>> {
+pub(crate) fn build_ech_config(ech: Option<&EchOpts>, proto: &str) -> Result<Option<EchClientConfig>> {
     let Some(ech) = ech else {
         return Ok(None);
     };

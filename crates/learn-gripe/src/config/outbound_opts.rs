@@ -72,13 +72,12 @@ impl ProxyEntry {
             | ProxyType::GostRelay
             | ProxyType::Mieru
             | ProxyType::Sudoku
+            | ProxyType::TrustTunnel
             | ProxyType::WireGuard => ProtocolSupport::Implemented,
             // Parsed and type-checked, but no outbound data plane yet.
-            ProxyType::Dns
-            | ProxyType::TrustTunnel
-            | ProxyType::OpenVpn
-            | ProxyType::Tailscale
-            | ProxyType::Unknown => ProtocolSupport::Unsupported,
+            ProxyType::Dns | ProxyType::OpenVpn | ProxyType::Tailscale | ProxyType::Unknown => {
+                ProtocolSupport::Unsupported
+            }
         }
     }
 }
@@ -274,6 +273,11 @@ pub struct ProxyOptions {
 
     // Transport selection + typed option blocks.
     pub network: Option<Network>,
+
+    // TrustTunnel outbound (`type: trusttunnel`). The HTTP/2 (`h2` ALPN) tunnel
+    // is implemented; `quic: true` (the HTTP/3 carrier) is rejected as deferred.
+    pub quic: Option<bool>,
+
     #[serde(rename = "ws-opts")]
     pub ws_opts: Option<WsOpts>,
     #[serde(rename = "http-opts")]
