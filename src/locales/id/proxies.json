@@ -2,6 +2,8 @@
   "page": {
     "actions": {
       "toggleChain": "Proxy Rantai",
+      "proxyDetection": "Deteksi Proxy",
+      "dnsLeak": "Pemeriksaan Keamanan DNS",
       "connect": "Connect",
       "disconnect": "Disconnect",
       "connecting": "Connecting...",

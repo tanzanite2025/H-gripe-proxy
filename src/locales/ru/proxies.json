@@ -2,6 +2,8 @@
   "page": {
     "actions": {
       "toggleChain": "Цепочка прокси",
+      "proxyDetection": "Проверка прокси",
+      "dnsLeak": "Проверка безопасности DNS",
       "connect": "Подключиться",
       "disconnect": "Отключиться",
       "connecting": "Подключение...",

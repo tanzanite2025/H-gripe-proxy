@@ -542,6 +542,8 @@ export interface TranslationResources {
           connect: string
           connecting: string
           disconnect: string
+          dnsLeak: string
+          proxyDetection: string
           toggleChain: string
         }
         chain: {

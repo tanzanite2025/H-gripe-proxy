@@ -2,6 +2,8 @@
   "page": {
     "actions": {
       "toggleChain": "チェーンプロキシ",
+      "proxyDetection": "プロキシ検出",
+      "dnsLeak": "DNS セキュリティチェック",
       "connect": "Connect",
       "disconnect": "Disconnect",
       "connecting": "Connecting...",

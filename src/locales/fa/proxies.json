@@ -2,6 +2,8 @@
   "page": {
     "actions": {
       "toggleChain": "پراکسی زنجیره‌ای",
+      "proxyDetection": "تشخیص پراکسی",
+      "dnsLeak": "بررسی امنیت DNS",
       "connect": "Connect",
       "disconnect": "Disconnect",
       "connecting": "Connecting...",

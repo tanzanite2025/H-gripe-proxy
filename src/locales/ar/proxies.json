@@ -2,6 +2,8 @@
   "page": {
     "actions": {
       "toggleChain": "بروكسي السلسلة",
+      "proxyDetection": "كشف البروكسي",
+      "dnsLeak": "فحص أمان DNS",
       "connect": "Connect",
       "disconnect": "Disconnect",
       "connecting": "Connecting...",

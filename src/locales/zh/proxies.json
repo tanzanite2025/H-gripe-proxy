@@ -2,6 +2,8 @@
   "page": {
     "actions": {
       "toggleChain": "链式代理",
+      "proxyDetection": "代理检测",
+      "dnsLeak": "DNS 安全检测",
       "connect": "连接",
       "disconnect": "断开",
       "connecting": "连接中...",

@@ -2,6 +2,8 @@
   "page": {
     "actions": {
       "toggleChain": "Zincir Proxy",
+      "proxyDetection": "Proxy Tespiti",
+      "dnsLeak": "DNS Güvenlik Kontrolü",
       "connect": "Connect",
       "disconnect": "Disconnect",
       "connecting": "Connecting...",

@@ -2,6 +2,8 @@
   "page": {
     "actions": {
       "toggleChain": "Чылбыр прокси",
+      "proxyDetection": "Прокси тикшерүе",
+      "dnsLeak": "DNS куркынычсызлыгын тикшерү",
       "connect": "Connect",
       "disconnect": "Disconnect",
       "connecting": "Connecting...",
