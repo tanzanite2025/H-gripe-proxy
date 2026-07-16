@@ -8,18 +8,18 @@
 //! A passing round-trip proves every layer lines up byte-for-byte.
 
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::TcpListener;
+use tokio::net::{TcpListener, TcpStream};
 use x25519_dalek::{EphemeralSecret, PublicKey};
 
 use crate::address::TargetAddr;
 
 use super::kip::{
-    self, KIP_TYPE_CLIENT_HELLO, KIP_TYPE_OPEN_TCP, KIP_TYPE_SERVER_HELLO, derive_psk_bases, derive_session_bases,
-    read_message, write_message,
+    self, KIP_TYPE_CLIENT_HELLO, KIP_TYPE_OPEN_TCP, KIP_TYPE_SERVER_HELLO, KIP_TYPE_START_UOT, derive_psk_bases,
+    derive_session_bases, read_message, write_message,
 };
 use super::obfs::ObfsStream;
 use super::record::{AeadMethod, RecordStream};
-use super::{SudokuOutboundConfig, connect, table};
+use super::{SudokuOutboundConfig, SudokuUdpAssoc, connect, table};
 
 const KEY: &str = "interop-test-key";
 const TABLE_TYPE: &str = "prefer_entropy";
@@ -37,11 +37,11 @@ fn config(port: u16, method: AeadMethod) -> SudokuOutboundConfig {
     }
 }
 
-/// Accept one connection and mirror the client stack, asserting the handshake
-/// fields and `OpenTCP` address, then echo all relayed bytes.
-async fn run_fake_server(listener: TcpListener, method: AeadMethod, expected_addr: Vec<u8>) {
-    let (sock, _) = listener.accept().await.expect("accept");
-
+/// Mirror the client stack (obfuscation + record with swapped bases) and run
+/// the KIP `ClientHello`/`ServerHello` X25519 handshake, returning the rekeyed
+/// record stream positioned to read the next control message (`OpenTCP` or
+/// `StartUoT`). Shared by the TCP and UoT fake servers.
+async fn server_handshake(sock: TcpStream, method: AeadMethod) -> RecordStream<ObfsStream<TcpStream>> {
     // Server obfuscation: decode the client's uplink, encode its downlink.
     let tables = table::new_directional_table(KEY, TABLE_TYPE, "").expect("server table");
     let obfs = ObfsStream::new(sock, tables.downlink, tables.uplink, 0, 0);
@@ -69,13 +69,21 @@ async fn run_fake_server(listener: TcpListener, method: AeadMethod, expected_add
     let mut hello = Vec::with_capacity(16 + 32 + 4);
     hello.extend_from_slice(&nonce);
     hello.extend_from_slice(server_pub.as_bytes());
-    hello.extend_from_slice(&1u32.to_be_bytes()); // selected features (OpenTCP)
+    hello.extend_from_slice(&kip::KIP_FEAT_ALL.to_be_bytes()); // selected features
     write_message(&mut rec, KIP_TYPE_SERVER_HELLO, &hello)
         .await
         .expect("write ServerHello");
     rec.flush().await.expect("flush ServerHello");
 
     rec.rekey(&session_s2c, &session_c2s).expect("server rekey");
+    rec
+}
+
+/// Accept one connection and mirror the client stack, asserting the handshake
+/// fields and `OpenTCP` address, then echo all relayed bytes.
+async fn run_fake_server(listener: TcpListener, method: AeadMethod, expected_addr: Vec<u8>) {
+    let (sock, _) = listener.accept().await.expect("accept");
+    let mut rec = server_handshake(sock, method).await;
 
     // --- OpenTCP request ---
     let (typ, addr) = read_message(&mut rec).await.expect("read OpenTCP");
@@ -94,6 +102,44 @@ async fn run_fake_server(listener: TcpListener, method: AeadMethod, expected_add
                 let _ = rec.flush().await;
             }
         }
+    }
+}
+
+/// Accept one connection, run the handshake, read the `StartUoT` preface, then
+/// echo each UoT datagram frame verbatim (the received destination address is
+/// reflected back as the reply's source address).
+async fn run_fake_uot_server(listener: TcpListener, method: AeadMethod, expected_addr: Vec<u8>) {
+    let (sock, _) = listener.accept().await.expect("accept");
+    let mut rec = server_handshake(sock, method).await;
+
+    // --- StartUoT preface (empty payload) ---
+    let (typ, payload) = read_message(&mut rec).await.expect("read StartUoT");
+    assert_eq!(typ, KIP_TYPE_START_UOT);
+    assert!(payload.is_empty(), "StartUoT carries no payload");
+
+    // --- echo UoT datagrams ---
+    loop {
+        let mut header = [0u8; 4];
+        if rec.read_exact(&mut header).await.is_err() {
+            break;
+        }
+        let addr_len = u16::from_be_bytes([header[0], header[1]]) as usize;
+        let payload_len = u16::from_be_bytes([header[2], header[3]]) as usize;
+        let mut addr = vec![0u8; addr_len];
+        let mut body = vec![0u8; payload_len];
+        if rec.read_exact(&mut addr).await.is_err() || rec.read_exact(&mut body).await.is_err() {
+            break;
+        }
+        assert_eq!(addr, expected_addr, "UoT destination address mismatch");
+
+        // Reflect the frame back with the destination echoed as the source.
+        if rec.write_all(&header).await.is_err()
+            || rec.write_all(&addr).await.is_err()
+            || rec.write_all(&body).await.is_err()
+        {
+            break;
+        }
+        let _ = rec.flush().await;
     }
 }
 
@@ -137,4 +183,51 @@ async fn chacha_full_stack_round_trip_near_mtu() {
 #[tokio::test]
 async fn aes_gcm_full_stack_round_trip() {
     round_trip(AeadMethod::Aes128Gcm, (0..3000u32).map(|i| i as u8).collect()).await;
+}
+
+/// Drive one or more UDP-over-TCP datagrams through the full stack against the
+/// UoT fake server and assert each reply payload matches what was sent.
+async fn uot_round_trip(method: AeadMethod, target: TargetAddr, datagrams: Vec<Vec<u8>>) {
+    let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
+    let port = listener.local_addr().expect("addr").port();
+
+    let expected_addr = kip::encode_address(&target).expect("encode addr");
+    let server = tokio::spawn(run_fake_uot_server(listener, method, expected_addr));
+
+    let cfg = config(port, method);
+    let assoc = SudokuUdpAssoc::connect(&cfg, &target).await.expect("uot connect");
+
+    for datagram in &datagrams {
+        assoc.send(datagram).await.expect("uot send");
+        let got = assoc.recv().await.expect("uot recv");
+        assert_eq!(&got, datagram, "UoT echo payload mismatch");
+    }
+
+    drop(assoc);
+    let _ = server.await;
+}
+
+#[tokio::test]
+async fn chacha_uot_round_trip_ipv4() {
+    let target = TargetAddr::Ip("8.8.8.8:53".parse().unwrap());
+    uot_round_trip(
+        AeadMethod::ChaCha20Poly1305,
+        target,
+        vec![b"dns query datagram".to_vec()],
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn aes_gcm_uot_round_trip_domain_multi() {
+    // Several datagrams on one association exercise frame boundaries, plus a
+    // near-MTU payload to cover a multi-record body.
+    let target = TargetAddr::Domain("example.com".to_string(), 5353);
+    let datagrams = vec![
+        b"first".to_vec(),
+        Vec::new(),
+        (0..1400u32).map(|i| (i * 3) as u8).collect(),
+        b"last".to_vec(),
+    ];
+    uot_round_trip(AeadMethod::Aes128Gcm, target, datagrams).await;
 }
