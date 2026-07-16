@@ -120,7 +120,12 @@ impl OpenVpnDevice {
         };
 
         let local_session = new_session_id()?;
-        let control = Arc::new(ControlChannel::new(writer.clone(), local_session, control_rx));
+        let control = Arc::new(ControlChannel::new(
+            writer.clone(),
+            local_session,
+            control_rx,
+            config.control_wrap()?,
+        ));
 
         // On UDP the transport is lossy, so drive control retransmission on a
         // timer until the handshake completes (a no-op on the lossless TCP path).
@@ -147,7 +152,7 @@ impl OpenVpnDevice {
             .map_err(|e| anyhow!("openvpn: control-channel TLS handshake: {e}"))?;
 
         // 3. key-method-2 exchange + directional key derivation.
-        let options = options_string(!config.udp, &config.cipher, "SHA1");
+        let options = options_string(!config.udp, &config.cipher, &config.auth_digest);
         let info = peer_info(&config.cipher);
         let client_record = ClientKeyMethod2::new(
             options,

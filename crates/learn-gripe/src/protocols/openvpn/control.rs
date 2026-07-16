@@ -30,6 +30,7 @@ use super::packet::{
     ControlPacket, P_ACK_V1, P_CONTROL_HARD_RESET_CLIENT_V2, P_CONTROL_V1, SessionId, has_message_id,
     parse_opcode_key_id,
 };
+use super::tlswrap::ControlWrap;
 
 /// Max OpenVPN packet size on the wire (the `u16` length ceiling).
 const MAX_PACKET: usize = 0xffff;
@@ -158,16 +159,26 @@ pub(super) struct ControlChannel {
     writer: Arc<PacketWriter>,
     local: SessionId,
     key_id: u8,
+    /// Optional `tls-auth` / `tls-crypt` static protection applied to every
+    /// control packet at write time (so retransmits carry fresh packet ids)
+    /// and removed/verified on read.
+    wrap: Option<ControlWrap>,
     state: std::sync::Mutex<ControlState>,
     rx: AsyncMutex<mpsc::UnboundedReceiver<Vec<u8>>>,
 }
 
 impl ControlChannel {
-    pub(super) fn new(writer: Arc<PacketWriter>, local: SessionId, rx: mpsc::UnboundedReceiver<Vec<u8>>) -> Self {
+    pub(super) fn new(
+        writer: Arc<PacketWriter>,
+        local: SessionId,
+        rx: mpsc::UnboundedReceiver<Vec<u8>>,
+        wrap: Option<ControlWrap>,
+    ) -> Self {
         Self {
             writer,
             local,
             key_id: 0,
+            wrap,
             state: std::sync::Mutex::new(ControlState {
                 send_message: 0,
                 recv_message: 0,
@@ -213,7 +224,7 @@ impl ControlChannel {
             st.unacked.insert(message_id, packet.clone());
             (message_id, packet)
         };
-        self.writer.write_packet(&packet.encode()?).await?;
+        self.writer.write_packet(&self.seal(&packet)?).await?;
         Ok(message_id)
     }
 
@@ -236,7 +247,7 @@ impl ControlChannel {
             packets
         };
         for packet in &packets {
-            self.writer.write_packet(&packet.encode()?).await?;
+            self.writer.write_packet(&self.seal(packet)?).await?;
         }
         Ok(())
     }
@@ -259,7 +270,16 @@ impl ControlChannel {
                 payload: Vec::new(),
             }
         };
-        self.writer.write_packet(&packet.encode()?).await
+        self.writer.write_packet(&self.seal(&packet)?).await
+    }
+
+    /// Encode a control packet and apply the static wrap, if configured.
+    fn seal(&self, packet: &ControlPacket) -> Result<Vec<u8>> {
+        let encoded = packet.encode()?;
+        match &self.wrap {
+            Some(wrap) => wrap.wrap(&encoded),
+            None => Ok(encoded),
+        }
     }
 
     /// Read the next in-order reliable control message, buffering/acking
@@ -280,6 +300,12 @@ impl ControlChannel {
                 rx.recv()
                     .await
                     .ok_or_else(|| anyhow!("openvpn: control channel closed"))?
+            };
+            // Fail closed: with tls-auth/tls-crypt every control packet must
+            // authenticate before the reliability layer sees it.
+            let raw = match &self.wrap {
+                Some(wrap) => wrap.unwrap(&raw)?,
+                None => raw,
             };
             let packet = ControlPacket::decode(&raw)?;
 
