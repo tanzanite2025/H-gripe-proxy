@@ -26,6 +26,7 @@ use super::push::{PUSH_REQUEST, PushReply, parse_push_reply};
 use super::rekey::{self, RekeyContext};
 use super::stream::{OvpnTcpStream, OvpnUdpAssoc};
 use super::tls;
+use super::tlswrap;
 
 /// How long the handshake waits for a control-channel reply on UDP before
 /// resending unacked reliable control packets (OpenVPN's default is ~1s).
@@ -196,7 +197,8 @@ impl OpenVpnDevice {
         bridge_shutdown.notify_one();
 
         // 5. Bring up the data channel + netstack poll loop.
-        let data = DataChannel::new(&keys, &config.cipher, push.peer_id, 0)?;
+        let auth = tlswrap::AuthDigest::parse(&config.auth_digest)?;
+        let data = DataChannel::new(&keys, &config.cipher, auth, push.peer_id, 0)?;
         let (commands_tx, commands_rx) = mpsc::channel::<Command>(CHANNEL_DEPTH);
         let keepalive = Keepalive {
             ping_interval: push.ping_interval,
@@ -227,6 +229,7 @@ impl OpenVpnDevice {
             username: config.username.clone().unwrap_or_default(),
             password: config.password.clone().unwrap_or_default(),
             cipher: config.cipher.clone(),
+            auth,
             key_len: cipher_key_len(&config.cipher),
             peer_id: push.peer_id,
             udp: config.udp,
@@ -348,10 +351,11 @@ where
     }
 }
 
-/// Data-cipher key length in bytes for a normalized AEAD cipher name.
+/// Data-cipher key length in bytes for a normalized cipher name.
 fn cipher_key_len(cipher: &str) -> usize {
     match cipher {
-        "AES-128-GCM" => 16,
+        "AES-128-GCM" | "AES-128-CBC" => 16,
+        "AES-192-CBC" => 24,
         _ => 32,
     }
 }

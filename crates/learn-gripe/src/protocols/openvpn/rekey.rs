@@ -28,6 +28,7 @@ use super::data::DataChannel;
 use super::device::read_server_key_method;
 use super::keymethod::{ClientKeyMethod2, derive_client_key_material};
 use super::packet::{ControlPacket, P_CONTROL_SOFT_RESET_V1, P_CONTROL_V1};
+use super::tlswrap::AuthDigest;
 
 /// Retransmission cadence for unacked reliable control packets on UDP.
 const RETRANSMIT: Duration = Duration::from_secs(1);
@@ -46,6 +47,7 @@ pub(super) struct RekeyContext {
     pub(super) username: String,
     pub(super) password: String,
     pub(super) cipher: String,
+    pub(super) auth: AuthDigest,
     pub(super) key_len: usize,
     pub(super) peer_id: u32,
     pub(super) udp: bool,
@@ -218,7 +220,7 @@ async fn exchange_keys(ctx: &RekeyContext, io: ControlTlsIo, key_id: u8) -> Resu
         ctx.control.remote_session(),
         ctx.key_len,
     )?;
-    DataChannel::new(&keys, &ctx.cipher, ctx.peer_id, key_id)
+    DataChannel::new(&keys, &ctx.cipher, ctx.auth, ctx.peer_id, key_id)
 }
 
 /// Next data-channel key id: 1..=7, wrapping past 0 (0 is only ever the

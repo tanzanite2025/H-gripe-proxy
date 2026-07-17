@@ -713,6 +713,15 @@ dependencies = [
 
 [[package]]
 name = "block-padding"
+version = "0.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a8894febbff9f758034a5b8e12d87918f56dfc64a8e1fe757d65e29041538d93"
+dependencies = [
+ "generic-array 0.14.7",
+]
+
+[[package]]
+name = "block-padding"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "710f1dd022ef4e93f8a438b4ba958de7f64308434fa6a87104481645cc30068b"
@@ -1085,6 +1094,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dec551ab6e7578819132c713a93c022a05d60159dc86e7a7050223577484c55a"
 dependencies = [
  "rustversion",
+]
+
+[[package]]
+name = "cbc"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "26b52a9543ae338f279b96b0b9fed9c8093744685043739079ce85cd58f289a6"
+dependencies = [
+ "cipher 0.4.4",
 ]
 
 [[package]]
@@ -4275,6 +4293,7 @@ version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "879f10e63c20629ecabbb64a8010319738c66a5cd0c29b02d63d272b03751d01"
 dependencies = [
+ "block-padding 0.3.3",
  "generic-array 0.14.7",
 ]
 
@@ -4284,7 +4303,7 @@ version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4250ce6452e92010fdf7268ccc5d14faa80bb12fc741938534c58f16804e03c7"
 dependencies = [
- "block-padding",
+ "block-padding 0.4.2",
  "hybrid-array",
 ]
 
@@ -4720,6 +4739,7 @@ dependencies = [
  "blake3",
  "boringtun",
  "bytes",
+ "cbc 0.1.2",
  "cfb-mode",
  "chacha20 0.9.1",
  "chacha20poly1305",
@@ -6136,7 +6156,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "279a91971a1d8eb1260a30938eae3be9cb67b472dffecb222fbbbe2fd2dc1453"
 dependencies = [
  "aes 0.9.0",
- "cbc",
+ "cbc 0.2.1",
  "der",
  "pbkdf2",
  "rand_core 0.10.1",
@@ -7122,10 +7142,10 @@ checksum = "bbf893f64684e58da8a68d56a5e84d1cf0440226274c515770fe267707a7d0b0"
 dependencies = [
  "aes 0.9.0",
  "bitflags 2.11.1",
- "block-padding",
+ "block-padding 0.4.2",
  "byteorder",
  "bytes",
- "cbc",
+ "cbc 0.2.1",
  "cipher 0.5.2",
  "crypto-bigint",
  "ctr 0.10.1",
@@ -8243,7 +8263,7 @@ dependencies = [
  "aead 0.6.1",
  "aes 0.9.0",
  "aes-gcm 0.11.0-rc.4",
- "cbc",
+ "cbc 0.2.1",
  "chacha20 0.10.0",
  "cipher 0.5.2",
  "ctr 0.10.1",
