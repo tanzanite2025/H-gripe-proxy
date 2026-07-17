@@ -14,6 +14,11 @@
 //! `relays_through_hysteria_xplus_obfs` additionally wraps the server's UDP
 //! socket with an **independent** XPlus codec (SHA-256 XOR, not the kernel's),
 //! proving byte-for-byte obfuscation compatibility.
+//!
+//! `relays_udp_through_hysteria` drives a SOCKS5 `UDP ASSOCIATE` through the
+//! kernel: the fake server accepts a `ClientRequest { udp: true }`, assigns a
+//! session id, and echoes `udpMessage` QUIC datagram frames, proving the v1
+//! UDP relay wire format end to end.
 
 use std::io;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
@@ -38,6 +43,7 @@ const AUTH: &str = "correct horse battery staple";
 const OBFS_KEY: &str = "xplus-shared-secret";
 const MESSAGE: &[u8] = b"the quick brown fox jumps over the lazy dog";
 const PROTOCOL_VERSION: u8 = 3;
+const UDP_SESSION_ID: u32 = 0x1234_ABCD;
 const XPLUS_SALT_LEN: usize = 16;
 
 // --- Independent XPlus codec (separate from the kernel implementation) ---
@@ -251,6 +257,89 @@ async fn run_server(endpoint: Endpoint, target_tx: oneshot::Sender<String>) {
     drop(ctl_send);
 }
 
+/// Run the fake Hysteria v1 server in UDP mode: validate the control-stream
+/// auth, accept the proxy stream's `ClientRequest { udp: true }`, answer OK
+/// with `SESSION_ID`, then echo every `udpMessage` datagram back with the
+/// session id and source host/port preserved.
+async fn run_udp_server(endpoint: Endpoint, target_tx: oneshot::Sender<String>) {
+    let conn = endpoint.accept().await.unwrap().await.unwrap();
+
+    // --- Control stream: version + ClientHello -> ServerHello ---
+    let (mut ctl_send, mut ctl_recv) = conn.accept_bi().await.unwrap();
+    let mut version = [0u8; 1];
+    ctl_recv.read_exact(&mut version).await.unwrap();
+    assert_eq!(version[0], PROTOCOL_VERSION, "protocol version");
+    let mut rate = [0u8; 16];
+    ctl_recv.read_exact(&mut rate).await.unwrap();
+    let auth = read_u16_bytes(&mut ctl_recv).await;
+    assert_eq!(auth, AUTH.as_bytes(), "ClientHello auth payload");
+    write_server_hello(&mut ctl_send).await;
+
+    // --- Proxy stream: ClientRequest { udp: true } -> ServerResponse ---
+    let (mut send, mut recv) = conn.accept_bi().await.unwrap();
+    let mut udp = [0u8; 1];
+    recv.read_exact(&mut udp).await.unwrap();
+    assert_eq!(udp[0], 1, "UDP request (udp = true)");
+    let host = read_u16_bytes(&mut recv).await;
+    let mut port = [0u8; 2];
+    recv.read_exact(&mut port).await.unwrap();
+    let target = format!("{}:{}", String::from_utf8(host).unwrap(), u16::from_be_bytes(port));
+    target_tx.send(target).unwrap();
+
+    // ServerResponse: ok = true, the assigned session id, empty message.
+    let mut resp = vec![1u8];
+    resp.extend_from_slice(&UDP_SESSION_ID.to_be_bytes());
+    resp.extend_from_slice(&0u16.to_be_bytes());
+    send.write_all(&resp).await.unwrap();
+
+    // Echo udpMessage datagrams: session(4) host_len(2) host port(2) msg_id(2)
+    // frag_id(1) frag_count(1) data_len(2) data.
+    loop {
+        let datagram = match conn.read_datagram().await {
+            Ok(d) => d,
+            Err(_) => return, // client closed the connection
+        };
+        let session = u32::from_be_bytes([datagram[0], datagram[1], datagram[2], datagram[3]]);
+        assert_eq!(session, UDP_SESSION_ID, "udpMessage session id");
+        conn.send_datagram(datagram).unwrap();
+    }
+}
+
+/// SOCKS5 no-auth greeting + UDP ASSOCIATE; returns the control connection and
+/// the relay address from the reply.
+async fn socks5_udp_associate(proxy: SocketAddr) -> (TcpStream, SocketAddr) {
+    let mut stream = TcpStream::connect(proxy).await.unwrap();
+    stream.write_all(&[0x05, 0x01, 0x00]).await.unwrap();
+    let mut selection = [0u8; 2];
+    stream.read_exact(&mut selection).await.unwrap();
+    assert_eq!(selection, [0x05, 0x00]);
+
+    stream
+        .write_all(&[0x05, 0x03, 0x00, 0x01, 0, 0, 0, 0, 0, 0])
+        .await
+        .unwrap();
+    let mut reply = [0u8; 10];
+    stream.read_exact(&mut reply).await.unwrap();
+    assert_eq!(reply[1], 0x00, "expected ASSOCIATE success reply");
+    assert_eq!(reply[3], 0x01, "expected an IPv4 bound address");
+    let ip = Ipv4Addr::new(reply[4], reply[5], reply[6], reply[7]);
+    let port = u16::from_be_bytes([reply[8], reply[9]]);
+    (stream, SocketAddr::from((ip, port)))
+}
+
+/// Build a SOCKS5 UDP datagram (FRAG=0, IPv4 destination) carrying `payload`.
+fn socks5_udp_datagram(dst: SocketAddr, payload: &[u8]) -> Vec<u8> {
+    let ip = match dst.ip() {
+        IpAddr::V4(v4) => v4.octets(),
+        IpAddr::V6(_) => panic!("test uses IPv4"),
+    };
+    let mut datagram = vec![0x00, 0x00, 0x00, 0x01];
+    datagram.extend_from_slice(&ip);
+    datagram.extend_from_slice(&dst.port().to_be_bytes());
+    datagram.extend_from_slice(payload);
+    datagram
+}
+
 /// Drive a minimal SOCKS5 CONNECT to `target` through the kernel inbound.
 async fn socks5_connect(proxy: SocketAddr, target: SocketAddr) -> TcpStream {
     let mut stream = TcpStream::connect(proxy).await.unwrap();
@@ -326,6 +415,45 @@ async fn relays_through_hysteria_with_auth() {
 
     relay_and_assert(base_config(server_addr.port()), target_rx).await;
     server.await.unwrap();
+}
+
+#[tokio::test]
+async fn relays_udp_through_hysteria() {
+    let endpoint = plain_server_endpoint();
+    let server_addr = endpoint.local_addr().unwrap();
+    let (target_tx, target_rx) = oneshot::channel();
+    tokio::spawn(run_udp_server(endpoint, target_tx));
+
+    let dummy_target = SocketAddr::from((Ipv4Addr::new(93, 184, 216, 34), 5353));
+    let handle = GripeKernel::start(GripeConfig {
+        socks_listen: SocketAddr::from((Ipv4Addr::LOCALHOST, 0)),
+        outbound: OutboundMode::Hysteria(Box::new(base_config(server_addr.port()))),
+    })
+    .await
+    .unwrap();
+
+    // The control connection must stay open for the association lifetime.
+    let (_control, relay) = socks5_udp_associate(handle.local_addr()).await;
+    let client = tokio::net::UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
+    client
+        .send_to(&socks5_udp_datagram(dummy_target, MESSAGE), relay)
+        .await
+        .unwrap();
+
+    let mut buf = [0u8; 2048];
+    let (n, from) = client.recv_from(&mut buf).await.unwrap();
+    assert_eq!(from, relay, "reply must come from the relay socket");
+    // RSV RSV FRAG ATYP=ipv4 + 4 addr + 2 port = 10-byte header.
+    assert_eq!(buf[3], 0x01);
+    assert_eq!(&buf[10..n], MESSAGE, "payload must round-trip through the v1 UDP relay");
+
+    assert_eq!(
+        target_rx.await.unwrap(),
+        dummy_target.to_string(),
+        "server parsed the UDP ClientRequest target"
+    );
+
+    handle.shutdown().await;
 }
 
 #[tokio::test]

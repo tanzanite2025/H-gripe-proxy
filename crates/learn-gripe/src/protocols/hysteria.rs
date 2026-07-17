@@ -23,29 +23,45 @@
 //! ServerResponse:  ok(1) session_id(4) msg_len(2) message
 //! ```
 //!
-//! Scope: TCP relay (the `direct` proxy stream). Authentication is `auth-str`
-//! (literal) or `auth` (base64); the `up`/`down` bandwidth (or `up-speed`/
-//! `down-speed` in Mbps) is sent in the hello as advisory rate — the server's
-//! Brutal congestion control honors `recv_bps`, while the local sender uses
-//! quinn's BBR (a local-only choice that does not affect interop). **XPlus
-//! packet obfuscation** (`obfs: <key>`) and **port hopping** (`ports`) run below
-//! QUIC in [`crate::transport::quic_obfs`]. UDP relay and the `faketcp` /
-//! `wechat-video` packet underlays are not implemented (rejected at config
-//! time).
+//! Scope: TCP relay (the `direct` proxy stream) plus UDP relay. A UDP session
+//! opens a proxy stream with `ClientRequest { udp: true, host, port }`, reads
+//! the server-assigned `session_id` from the `ServerResponse`, then carries
+//! each datagram as one or more QUIC datagram frames using the `udpMessage`
+//! layout:
+//! ```text
+//! udpMessage: session_id(4) host_len(2) host port(2) msg_id(2) frag_id(1) frag_count(1) data_len(2) data
+//! ```
+//! The proxy stream is held open for the session's lifetime (closing it tears
+//! the UDP session down server-side). A payload too large for one QUIC datagram
+//! is split across fragments that share a `msg_id`; reassembly reuses
+//! [`crate::protocols::quic_udp`].
+//!
+//! Authentication is `auth-str` (literal) or `auth` (base64); the `up`/`down`
+//! bandwidth (or `up-speed`/`down-speed` in Mbps) is sent in the hello as
+//! advisory rate — the server's Brutal congestion control honors `recv_bps`,
+//! while the local sender uses quinn's BBR (a local-only choice that does not
+//! affect interop). **XPlus packet obfuscation** (`obfs: <key>`) and **port
+//! hopping** (`ports`) run below QUIC in [`crate::transport::quic_obfs`]. The
+//! `faketcp` / `wechat-video` packet underlays are not implemented (rejected at
+//! config time).
 
 use std::io;
 use std::pin::Pin;
+use std::sync::Mutex;
+use std::sync::atomic::{AtomicU16, Ordering};
 use std::task::{Context as TaskContext, Poll};
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result, anyhow, bail};
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD as BASE64;
+use bytes::Bytes;
 use quinn::{Connection, Endpoint, RecvStream, SendStream};
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt, ReadBuf};
 
 use crate::address::TargetAddr;
 use crate::config::outbound_opts::ProxyEntry;
 use crate::outbound::BoxedStream;
+use crate::protocols::quic_udp::{self, Reassembler};
 use crate::protocols::xplus::XPlus;
 use crate::transport::quic::{self, Congestion, QuicClientParams};
 use crate::transport::quic_obfs::{PacketObfs, PortHopConfig};
@@ -59,6 +75,9 @@ const DEFAULT_ALPN: &str = "hysteria";
 const MBPS_TO_BPS: u64 = 125_000;
 /// Defensive cap on a server-sent `ServerHello`/`ServerResponse` message length.
 const MAX_MESSAGE_LEN: u64 = 4096;
+/// Fixed-size prefix of a `udpMessage` before the variable-length host:
+/// session_id(4) + host_len(2).
+const UDP_HOST_LEN_OFFSET: usize = 6;
 
 /// Fully-resolved Hysteria v1 outbound parameters.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -247,11 +266,11 @@ pub async fn connect(config: &HysteriaOutboundConfig, target: &TargetAddr) -> Re
 
     // --- Proxy stream: ClientRequest -> ServerResponse ---
     let (mut send, mut recv) = connection.open_bi().await.context("hysteria: open proxy stream")?;
-    send.write_all(&encode_client_request(target))
+    send.write_all(&encode_client_request(target, false))
         .await
         .context("hysteria: send ClientRequest")?;
     send.flush().await.context("hysteria: flush ClientRequest")?;
-    let (ok, message) = read_server_response(&mut recv)
+    let (ok, _session_id, message) = read_server_response(&mut recv)
         .await
         .context("hysteria: read ServerResponse")?;
     if !ok {
@@ -267,6 +286,184 @@ pub async fn connect(config: &HysteriaOutboundConfig, target: &TargetAddr) -> Re
     }))
 }
 
+/// Connect a Hysteria v1 UDP relay session for `target`. Authenticates over the
+/// control stream, opens a proxy stream with `ClientRequest { udp: true }` to
+/// obtain the server-assigned session id, then carries each datagram as one or
+/// more QUIC datagram frames in the `udpMessage` layout.
+pub async fn connect_udp(config: &HysteriaOutboundConfig, target: &TargetAddr) -> Result<HysteriaUdp> {
+    let quic = quic::connect(&config.quic_params())
+        .await
+        .context("hysteria: QUIC connect")?;
+    let connection = quic.connection.clone();
+
+    // --- Control stream: version + ClientHello -> ServerHello ---
+    let (mut ctl_send, mut ctl_recv) = connection.open_bi().await.context("hysteria: open control stream")?;
+    let mut hello = vec![PROTOCOL_VERSION];
+    encode_client_hello(&mut hello, config.send_bps, config.recv_bps, &config.auth);
+    ctl_send.write_all(&hello).await.context("hysteria: send ClientHello")?;
+    ctl_send.flush().await.context("hysteria: flush ClientHello")?;
+    let (ok, message) = read_server_hello(&mut ctl_recv)
+        .await
+        .context("hysteria: read ServerHello")?;
+    if !ok {
+        bail!("hysteria: authentication rejected: {message}");
+    }
+
+    // --- Proxy stream: ClientRequest { udp: true } -> ServerResponse ---
+    let (mut send, mut recv) = connection.open_bi().await.context("hysteria: open proxy stream")?;
+    send.write_all(&encode_client_request(target, true))
+        .await
+        .context("hysteria: send ClientRequest")?;
+    send.flush().await.context("hysteria: flush ClientRequest")?;
+    let (ok, session_id, message) = read_server_response(&mut recv)
+        .await
+        .context("hysteria: read ServerResponse")?;
+    if !ok {
+        bail!("hysteria: UDP session rejected by server: {message}");
+    }
+
+    let (host, port) = host_port(target);
+    Ok(HysteriaUdp {
+        _endpoint: quic.endpoint,
+        connection,
+        _control: (ctl_send, ctl_recv),
+        _proxy: (send, recv),
+        host,
+        port,
+        session_id,
+        next_msg_id: AtomicU16::new(0),
+        reassembler: Mutex::new(Reassembler::new()),
+    })
+}
+
+/// A Hysteria v1 UDP relay session bound to a single target. Datagrams to/from
+/// the target are carried as QUIC datagram frames in the `udpMessage` layout.
+///
+/// The owning [`Endpoint`], the QUIC [`Connection`], the control stream, and
+/// the UDP proxy stream are held so the connection / session stays alive for
+/// the session's lifetime (the reference server tears the UDP session down when
+/// its proxy stream closes).
+pub struct HysteriaUdp {
+    _endpoint: Endpoint,
+    connection: Connection,
+    _control: (SendStream, RecvStream),
+    _proxy: (SendStream, RecvStream),
+    /// The fixed target all datagrams in this session carry.
+    host: String,
+    port: u16,
+    /// Server-assigned UDP session id echoed in every `udpMessage`.
+    session_id: u32,
+    next_msg_id: AtomicU16,
+    reassembler: Mutex<Reassembler>,
+}
+
+impl HysteriaUdp {
+    /// Send one UDP datagram to the session target, fragmenting if it does not
+    /// fit a single QUIC datagram.
+    pub async fn send(&self, payload: &[u8]) -> Result<()> {
+        let max = self
+            .connection
+            .max_datagram_size()
+            .ok_or_else(|| anyhow!("hysteria: peer does not allow QUIC datagrams (UDP relay unavailable)"))?;
+        let msg_id = self.next_msg_id.fetch_add(1, Ordering::Relaxed);
+        for datagram in encode_udp_messages(self.session_id, &self.host, self.port, msg_id, payload, max)? {
+            self.connection
+                .send_datagram(datagram)
+                .map_err(|e| anyhow!("hysteria: send UDP datagram: {e}"))?;
+        }
+        Ok(())
+    }
+
+    /// Receive the next fully reassembled UDP datagram from the target.
+    pub async fn recv(&self) -> Result<Vec<u8>> {
+        loop {
+            let datagram = self
+                .connection
+                .read_datagram()
+                .await
+                .context("hysteria: read UDP datagram")?;
+            let Some((session_id, msg_id, frag_id, frag_count, payload)) = parse_udp_message(&datagram) else {
+                continue;
+            };
+            if session_id != self.session_id {
+                continue;
+            }
+            if let Some(full) = self
+                .reassembler
+                .lock()
+                .expect("reassembler mutex poisoned")
+                .accept(msg_id, frag_id, frag_count, payload)
+            {
+                return Ok(full);
+            }
+        }
+    }
+}
+
+/// Encode a UDP payload into one or more `udpMessage` datagrams, each sized to
+/// fit within `max_datagram`. Every fragment repeats the session id, target
+/// host/port, and `msg_id`; the payload is split across the `frag_count`
+/// fragments.
+fn encode_udp_messages(
+    session_id: u32,
+    host: &str,
+    port: u16,
+    msg_id: u16,
+    payload: &[u8],
+    max_datagram: usize,
+) -> Result<Vec<Bytes>> {
+    // session(4) host_len(2) host port(2) msg_id(2) frag_id(1) frag_count(1) data_len(2)
+    let overhead = UDP_HOST_LEN_OFFSET + host.len() + 2 + 2 + 1 + 1 + 2;
+    let chunk_size = max_datagram
+        .checked_sub(overhead)
+        .filter(|n| *n > 0)
+        .ok_or_else(|| anyhow!("hysteria: QUIC datagram too small for udpMessage header ({max_datagram} bytes)"))?;
+
+    let chunks = quic_udp::fragments(payload, chunk_size);
+    let frag_count =
+        u8::try_from(chunks.len()).map_err(|_| anyhow!("hysteria: UDP payload needs too many fragments"))?;
+
+    let mut datagrams = Vec::with_capacity(chunks.len());
+    for (frag_id, chunk) in chunks.into_iter().enumerate() {
+        let mut buf = Vec::with_capacity(overhead + chunk.len());
+        buf.extend_from_slice(&session_id.to_be_bytes());
+        buf.extend_from_slice(&(host.len() as u16).to_be_bytes());
+        buf.extend_from_slice(host.as_bytes());
+        buf.extend_from_slice(&port.to_be_bytes());
+        buf.extend_from_slice(&msg_id.to_be_bytes());
+        buf.push(frag_id as u8);
+        buf.push(frag_count);
+        buf.extend_from_slice(&(chunk.len() as u16).to_be_bytes());
+        buf.extend_from_slice(chunk);
+        datagrams.push(Bytes::from(buf));
+    }
+    Ok(datagrams)
+}
+
+/// Parse an inbound `udpMessage` into `(session_id, msg_id, frag_id,
+/// frag_count, payload)`. The source host/port are skipped (a session has one
+/// fixed target here). Returns `None` for a malformed datagram.
+fn parse_udp_message(data: &[u8]) -> Option<(u32, u16, u8, u8, Vec<u8>)> {
+    if data.len() < UDP_HOST_LEN_OFFSET {
+        return None;
+    }
+    let session_id = u32::from_be_bytes([data[0], data[1], data[2], data[3]]);
+    let host_len = u16::from_be_bytes([data[4], data[5]]) as usize;
+    // host, then port(2) msg_id(2) frag_id(1) frag_count(1) data_len(2).
+    let mut pos = UDP_HOST_LEN_OFFSET.checked_add(host_len)?;
+    if data.len() < pos + 8 {
+        return None;
+    }
+    pos += 2; // port (ignored)
+    let msg_id = u16::from_be_bytes([data[pos], data[pos + 1]]);
+    let frag_id = data[pos + 2];
+    let frag_count = data[pos + 3];
+    let data_len = u16::from_be_bytes([data[pos + 4], data[pos + 5]]) as usize;
+    pos += 6;
+    let end = pos.checked_add(data_len).filter(|e| *e <= data.len())?;
+    Some((session_id, msg_id, frag_id, frag_count, data[pos..end].to_vec()))
+}
+
 /// Encode `ClientHello { rate { send_bps, recv_bps }, auth }`.
 fn encode_client_hello(buf: &mut Vec<u8>, send_bps: u64, recv_bps: u64, auth: &[u8]) {
     buf.extend_from_slice(&send_bps.to_be_bytes());
@@ -275,11 +472,11 @@ fn encode_client_hello(buf: &mut Vec<u8>, send_bps: u64, recv_bps: u64, auth: &[
     buf.extend_from_slice(auth);
 }
 
-/// Encode `ClientRequest { udp: false, host, port }` for a TCP target.
-fn encode_client_request(target: &TargetAddr) -> Vec<u8> {
+/// Encode `ClientRequest { udp, host, port }` for a target.
+fn encode_client_request(target: &TargetAddr, udp: bool) -> Vec<u8> {
     let (host, port) = host_port(target);
     let mut buf = Vec::with_capacity(1 + 2 + host.len() + 2);
-    buf.push(0); // udp = false
+    buf.push(udp as u8);
     buf.extend_from_slice(&(host.len() as u16).to_be_bytes());
     buf.extend_from_slice(host.as_bytes());
     buf.extend_from_slice(&port.to_be_bytes());
@@ -295,13 +492,16 @@ async fn read_server_hello(recv: &mut RecvStream) -> Result<(bool, String)> {
     Ok((ok, message))
 }
 
-/// Read a `ServerResponse { ok, session_id, message }`, returning `(ok, message)`.
-async fn read_server_response(recv: &mut RecvStream) -> Result<(bool, String)> {
+/// Read a `ServerResponse { ok, session_id, message }`, returning `(ok,
+/// session_id, message)`. The server assigns `session_id`, which the client
+/// echoes in every `udpMessage` of a UDP session.
+async fn read_server_response(recv: &mut RecvStream) -> Result<(bool, u32, String)> {
     let mut head = [0u8; 5]; // ok(1) + session_id(4)
     recv.read_exact(&mut head).await.context("read header")?;
     let ok = head[0] != 0;
+    let session_id = u32::from_be_bytes([head[1], head[2], head[3], head[4]]);
     let message = read_u16_string(recv).await.context("read message")?;
-    Ok((ok, message))
+    Ok((ok, session_id, message))
 }
 
 /// Read a `u16`-length-prefixed UTF-8 (lossy) string.
@@ -467,16 +667,68 @@ mod tests {
 
     #[test]
     fn encodes_client_request_for_ip_and_domain() {
-        let req = encode_client_request(&TargetAddr::Domain("example.com".to_string(), 443));
+        let req = encode_client_request(&TargetAddr::Domain("example.com".to_string(), 443), false);
         assert_eq!(req[0], 0); // udp = false
         assert_eq!(&req[1..3], &11u16.to_be_bytes()); // host length
         assert_eq!(&req[3..14], b"example.com");
         assert_eq!(&req[14..16], &443u16.to_be_bytes());
 
-        let req = encode_client_request(&TargetAddr::Ip("93.184.216.34:80".parse::<SocketAddr>().unwrap()));
+        let req = encode_client_request(
+            &TargetAddr::Ip("93.184.216.34:80".parse::<SocketAddr>().unwrap()),
+            false,
+        );
         let host_len = u16::from_be_bytes([req[1], req[2]]) as usize;
         assert_eq!(&req[3..3 + host_len], b"93.184.216.34");
         assert_eq!(&req[3 + host_len..3 + host_len + 2], &80u16.to_be_bytes());
+    }
+
+    #[test]
+    fn udp_message_round_trips_single_fragment() {
+        let msgs = encode_udp_messages(0xDEAD_BEEF, "example.com", 443, 7, b"hello", 1200).unwrap();
+        assert_eq!(msgs.len(), 1);
+        let d = &msgs[0];
+        // session(4) host_len(2) host port(2) msg_id(2) frag_id(1) frag_count(1) data_len(2) data.
+        assert_eq!(&d[..4], &0xDEAD_BEEFu32.to_be_bytes());
+        assert_eq!(&d[4..6], &11u16.to_be_bytes());
+        assert_eq!(&d[6..17], b"example.com");
+        assert_eq!(&d[17..19], &443u16.to_be_bytes());
+        assert_eq!(&d[19..21], &7u16.to_be_bytes());
+        assert_eq!(d[21], 0); // frag id
+        assert_eq!(d[22], 1); // frag count
+        assert_eq!(&d[23..25], &5u16.to_be_bytes());
+        let (session_id, msg_id, frag_id, frag_count, payload) = parse_udp_message(d).unwrap();
+        assert_eq!((session_id, msg_id, frag_id, frag_count), (0xDEAD_BEEF, 7, 0, 1));
+        assert_eq!(payload, b"hello");
+    }
+
+    #[test]
+    fn udp_message_fragments_and_reassembles() {
+        let payload: Vec<u8> = (0..1000u16).map(|i| i as u8).collect();
+        let msgs = encode_udp_messages(1, "1.2.3.4", 53, 42, &payload, 96).unwrap();
+        assert!(msgs.len() > 1, "expected fragmentation");
+
+        let mut reassembler = Reassembler::new();
+        let mut out = None;
+        for d in &msgs {
+            let (session_id, msg_id, frag_id, frag_count, frag_payload) = parse_udp_message(d).unwrap();
+            assert_eq!(session_id, 1);
+            assert_eq!(msg_id, 42);
+            assert_eq!(frag_count as usize, msgs.len());
+            if let Some(full) = reassembler.accept(msg_id, frag_id, frag_count, frag_payload) {
+                out = Some(full);
+            }
+        }
+        assert_eq!(out.as_deref(), Some(&payload[..]));
+    }
+
+    #[test]
+    fn udp_message_rejects_truncated() {
+        assert_eq!(parse_udp_message(&[0, 0, 0]), None);
+        // Valid header claiming more data than present.
+        let mut d = encode_udp_messages(1, "a", 1, 0, b"xy", 1200).unwrap()[0].to_vec();
+        let last = d.len() - 1;
+        d.truncate(last);
+        assert_eq!(parse_udp_message(&d), None);
     }
 
     #[test]

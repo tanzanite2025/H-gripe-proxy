@@ -171,6 +171,9 @@ pub enum UdpEgress {
     Vless(Box<VlessOutboundConfig>),
     Vmess(Box<VmessOutboundConfig>),
     Shadowsocks(Box<ShadowsocksOutboundConfig>),
+    /// Hysteria v1 carries datagrams over QUIC datagram frames (`udpMessage`),
+    /// not a proxy stream.
+    Hysteria(Box<HysteriaOutboundConfig>),
     /// Hysteria2 carries datagrams over QUIC datagram frames, not a proxy stream.
     Hysteria2(Box<Hysteria2OutboundConfig>),
     /// MASQUE carries datagrams as HTTP Datagrams over QUIC datagram frames
@@ -230,6 +233,7 @@ fn udp_egress_for(mode: &OutboundMode) -> Option<UdpEgress> {
         OutboundMode::Vmess(config) => Some(UdpEgress::Vmess(config.clone())),
         OutboundMode::Shadowsocks(config) => Some(UdpEgress::Shadowsocks(config.clone())),
         OutboundMode::Tuic(config) => Some(UdpEgress::Tuic(config.clone())),
+        OutboundMode::Hysteria(config) => Some(UdpEgress::Hysteria(config.clone())),
         OutboundMode::Hysteria2(config) => Some(UdpEgress::Hysteria2(config.clone())),
         OutboundMode::Masque(config) => Some(UdpEgress::Masque(config.clone())),
         OutboundMode::AnyTls(config) => Some(UdpEgress::AnyTls(config.clone())),
@@ -253,15 +257,13 @@ fn udp_egress_for(mode: &OutboundMode) -> Option<UdpEgress> {
         // reaches here; it has no egress of its own.
         OutboundMode::Routed(_) => None,
         // No UDP relay path: `Reject` blocks the datagram; an upstream HTTP
-        // proxy has none here; SSH / GOST relay / mieru are TCP-only; Hysteria
-        // v1 here carries TCP only (no UDP relay yet). Their associations are
-        // refused rather than leaked.
+        // proxy has none here; SSH / GOST relay / mieru are TCP-only. Their
+        // associations are refused rather than leaked.
         OutboundMode::Reject
         | OutboundMode::Http(_)
         | OutboundMode::Ssh(_)
         | OutboundMode::GostRelay(_)
-        | OutboundMode::Mieru(_)
-        | OutboundMode::Hysteria(_) => None,
+        | OutboundMode::Mieru(_) => None,
     }
 }
 
@@ -298,6 +300,7 @@ pub async fn connect_proxy_udp(egress: &UdpEgress, target: &TargetAddr) -> Resul
         | UdpEgress::Snell(_)
         | UdpEgress::Sudoku(_)
         | UdpEgress::TrustTunnel(_)
+        | UdpEgress::Hysteria(_)
         | UdpEgress::Hysteria2(_)
         | UdpEgress::Masque(_)
         | UdpEgress::Tuic(_)

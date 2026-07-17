@@ -183,6 +183,7 @@ pub(crate) async fn run_egress<S: ReplySink + Send + 'static>(
         UdpEgress::Snell(config) => run_snell_egress(config, target, rx, sink, idle).await,
         UdpEgress::Sudoku(config) => run_sudoku_egress(config, target, rx, sink, idle).await,
         UdpEgress::TrustTunnel(config) => run_trusttunnel_egress(config, target, rx, sink, idle).await,
+        UdpEgress::Hysteria(config) => run_hysteria_egress(config, target, rx, sink, idle).await,
         UdpEgress::Hysteria2(config) => run_hysteria2_egress(config, target, rx, sink, idle).await,
         UdpEgress::Masque(config) => run_masque_egress(config, target, rx, sink, idle).await,
         UdpEgress::Tuic(config) => run_tuic_egress(config, target, rx, sink, idle).await,
@@ -370,6 +371,34 @@ async fn run_trusttunnel_egress<S: ReplySink>(
                 None => return Ok(()),
             },
             res = assoc.recv() => {
+                let payload = res?;
+                if !sink.deliver(&payload).await {
+                    return Ok(());
+                }
+            }
+            _ = idle_elapsed(idle) => return Ok(()),
+        }
+    }
+}
+
+/// Hysteria v1 UDP egress: relay datagrams as `udpMessage` QUIC datagram frames
+/// on the authenticated Hysteria v1 connection, fragmenting/reassembling per
+/// packet. The session's proxy stream is held open by the session handle.
+async fn run_hysteria_egress<S: ReplySink>(
+    config: Box<crate::protocols::hysteria::HysteriaOutboundConfig>,
+    target: TargetAddr,
+    mut rx: mpsc::Receiver<Vec<u8>>,
+    sink: S,
+    idle: Option<Duration>,
+) -> Result<()> {
+    let session = crate::protocols::hysteria::connect_udp(&config, &target).await?;
+    loop {
+        tokio::select! {
+            maybe = rx.recv() => match maybe {
+                Some(payload) => session.send(&payload).await?,
+                None => return Ok(()),
+            },
+            res = session.recv() => {
                 let payload = res?;
                 if !sink.deliver(&payload).await {
                     return Ok(());
@@ -633,6 +662,7 @@ impl ProxyFraming {
             | UdpEgress::Snell(_)
             | UdpEgress::Sudoku(_)
             | UdpEgress::TrustTunnel(_)
+            | UdpEgress::Hysteria(_)
             | UdpEgress::Hysteria2(_)
             | UdpEgress::Masque(_)
             | UdpEgress::Tuic(_)
