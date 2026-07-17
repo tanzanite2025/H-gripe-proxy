@@ -117,7 +117,7 @@ fn relay_udp(
         target = unmap_fake_ip(pool, target);
     }
 
-    // No UDP egress (Reject, an upstream SOCKS5 proxy): drop, don't leak.
+    // No UDP egress (Reject, an upstream HTTP proxy): drop, don't leak.
     let source = endpoint_socketaddr(flow.src());
     let Some(egress) = outbound::resolve_udp_egress(mode, &target, Some(source)) else {
         return;

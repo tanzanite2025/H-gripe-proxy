@@ -205,6 +205,43 @@ where
     Ok(())
 }
 
+/// Perform the client side of a no-auth handshake against an upstream proxy and
+/// issue a `UDP ASSOCIATE`. Returns the upstream relay address that datagrams
+/// should be sent to; the association lives as long as `stream` stays open.
+pub async fn client_udp_associate<S>(stream: &mut S) -> Result<SocketAddr>
+where
+    S: AsyncRead + AsyncWrite + Unpin,
+{
+    stream.write_all(&[VERSION, 0x01, METHOD_NO_AUTH]).await?;
+    let mut selection = [0u8; 2];
+    stream.read_exact(&mut selection).await?;
+    if selection[0] != VERSION || selection[1] != METHOD_NO_AUTH {
+        bail!("upstream rejected no-auth handshake: {:?}", selection);
+    }
+
+    // The conventional 0.0.0.0:0 placeholder: the client's send address is not
+    // known ahead of time.
+    let mut request = vec![VERSION, CMD_UDP_ASSOCIATE, RSV];
+    encode_address(
+        &mut request,
+        &TargetAddr::Ip(SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 0)),
+    );
+    stream.write_all(&request).await?;
+
+    let mut reply_head = [0u8; 4];
+    stream.read_exact(&mut reply_head).await?;
+    if reply_head[0] != VERSION {
+        bail!("upstream reply has bad version: {}", reply_head[0]);
+    }
+    if reply_head[1] != REP_SUCCEEDED {
+        bail!("upstream UDP ASSOCIATE failed with reply code {}", reply_head[1]);
+    }
+    match read_address(stream, reply_head[3]).await? {
+        TargetAddr::Ip(addr) => Ok(addr),
+        TargetAddr::Domain(host, port) => bail!("upstream relay address is a domain: {host}:{port}"),
+    }
+}
+
 /// Read a SOCKS5 address (`atyp` already consumed by the caller) and its
 /// trailing big-endian port, returning the [`TargetAddr`]. Shared by the
 /// inbound request parser, the upstream client, and the Trojan UDP packet
