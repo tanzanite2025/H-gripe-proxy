@@ -74,6 +74,7 @@ const OPCODE_SHIFT: u8 = 3;
 const KEY_ID_MASK: u8 = 0x07;
 const P_CONTROL_HARD_RESET_CLIENT_V2: u8 = 7;
 const P_CONTROL_HARD_RESET_SERVER_V2: u8 = 8;
+const P_CONTROL_SOFT_RESET_V1: u8 = 3;
 const P_CONTROL_V1: u8 = 4;
 const P_ACK_V1: u8 = 5;
 const P_DATA_V2: u8 = 9;
@@ -244,6 +245,7 @@ fn opcode_key_id(opcode: u8, key_id: u8) -> u8 {
 #[derive(Clone)]
 struct ControlPacket {
     opcode: u8,
+    key_id: u8,
     local_session: [u8; 8],
     ack_ids: Vec<u32>,
     ack_remote_session: [u8; 8],
@@ -254,6 +256,7 @@ struct ControlPacket {
 impl ControlPacket {
     fn decode(packet: &[u8]) -> Self {
         let opcode = opcode_of(packet[0]);
+        let key_id = packet[0] & KEY_ID_MASK;
         let mut local_session = [0u8; 8];
         local_session.copy_from_slice(&packet[1..9]);
         let body = &packet[9..];
@@ -279,6 +282,7 @@ impl ControlPacket {
         let _ = offset;
         Self {
             opcode,
+            key_id,
             local_session,
             ack_ids,
             ack_remote_session,
@@ -289,7 +293,7 @@ impl ControlPacket {
 
     fn encode(&self) -> Vec<u8> {
         let mut out = Vec::new();
-        out.push(opcode_key_id(self.opcode, 0));
+        out.push(opcode_key_id(self.opcode, self.key_id));
         out.extend_from_slice(&self.local_session);
         out.push(self.ack_ids.len() as u8);
         for id in &self.ack_ids {
@@ -417,9 +421,9 @@ fn derive_server_keys(
     }
 }
 
-fn data_header(peer_id: u32) -> [u8; 4] {
+fn data_header(peer_id: u32, key_id: u8) -> [u8; 4] {
     [
-        opcode_key_id(P_DATA_V2, 0),
+        opcode_key_id(P_DATA_V2, key_id),
         (peer_id >> 16) as u8,
         (peer_id >> 8) as u8,
         peer_id as u8,
@@ -434,8 +438,8 @@ fn nonce(iv: &[u8; 12], packet_id: u32) -> [u8; 12] {
 }
 
 impl ServerKeys {
-    fn seal(&self, packet_id: u32, plaintext: &[u8]) -> Vec<u8> {
-        let header = data_header(PEER_ID);
+    fn seal(&self, key_id: u8, packet_id: u32, plaintext: &[u8]) -> Vec<u8> {
+        let header = data_header(PEER_ID, key_id);
         let pid = packet_id.to_be_bytes();
         let mut aad = Vec::new();
         aad.extend_from_slice(&header);
@@ -591,6 +595,25 @@ struct ServerOpts {
     push_extra: String,
     /// Notified once for every decrypted data-channel ping from the client.
     ping_seen: Option<mpsc::UnboundedSender<()>>,
+    /// Notified with the key id when the server first decrypts a client data
+    /// packet under a renegotiated key (proof the client rotated keys).
+    rekey_done: Option<mpsc::UnboundedSender<u8>>,
+    /// If set, the server initiates a soft-reset renegotiation itself this long
+    /// after the data phase starts (TCP server only).
+    initiate_rekey_after: Option<Duration>,
+}
+
+/// Everything the TCP data plane needs to renegotiate keys mid-session.
+struct DataPlaneRekey {
+    /// Client soft resets surfaced by the packet splitter.
+    soft_rx: mpsc::UnboundedReceiver<ControlPacket>,
+    /// Where the splitter routes `P_CONTROL_V1` payloads (the current key
+    /// state's TLS stream); replaced for each renegotiation.
+    tls_in: Arc<std::sync::Mutex<Option<mpsc::UnboundedSender<Vec<u8>>>>>,
+    wrap: ServerWrap,
+    wrap_pid: Arc<AtomicU32>,
+    server_session: [u8; 8],
+    client_session: [u8; 8],
 }
 
 // --- the fake OpenVPN server --------------------------------------------------
@@ -695,6 +718,7 @@ async fn serve_openvpn(tcp: tokio::net::TcpStream, wrap: ServerWrap, opts: Serve
 
     let server_reset = ControlPacket {
         opcode: P_CONTROL_HARD_RESET_SERVER_V2,
+        key_id: 0,
         local_session: server_session,
         ack_ids: vec![reset.message_id],
         ack_remote_session: client_session,
@@ -705,11 +729,16 @@ async fn serve_openvpn(tcp: tokio::net::TcpStream, wrap: ServerWrap, opts: Serve
         .await;
 
     // 2. Split the inbound packet stream into a control-payload queue (feeding
-    //    the server-side TLS) and a data-packet queue.
+    //    the current key state's server-side TLS), a soft-reset queue (rekey
+    //    triggers), and a data-packet queue.
     let (ctrl_tx, ctrl_rx) = mpsc::unbounded_channel::<Vec<u8>>();
+    let tls_in: Arc<std::sync::Mutex<Option<mpsc::UnboundedSender<Vec<u8>>>>> =
+        Arc::new(std::sync::Mutex::new(Some(ctrl_tx)));
+    let (soft_tx, soft_rx) = mpsc::unbounded_channel::<ControlPacket>();
     let (data_tx, mut data_rx) = mpsc::unbounded_channel::<Vec<u8>>();
     {
         let wrap = wrap.clone();
+        let tls_in = tls_in.clone();
         tokio::spawn(async move {
             loop {
                 let Some(packet) = read_one_frame(&mut read_half).await else {
@@ -718,9 +747,14 @@ async fn serve_openvpn(tcp: tokio::net::TcpStream, wrap: ServerWrap, opts: Serve
                 match opcode_of(packet[0]) {
                     P_CONTROL_V1 => {
                         let ctrl = ControlPacket::decode(&wrap.unwrap(&packet));
-                        if !ctrl.payload.is_empty() {
-                            let _ = ctrl_tx.send(ctrl.payload);
+                        if !ctrl.payload.is_empty()
+                            && let Some(tx) = tls_in.lock().unwrap().as_ref()
+                        {
+                            let _ = tx.send(ctrl.payload);
                         }
+                    }
+                    P_CONTROL_SOFT_RESET_V1 => {
+                        let _ = soft_tx.send(ControlPacket::decode(&wrap.unwrap(&packet)));
                     }
                     P_ACK_V1 => {}
                     P_DATA_V2 => {
@@ -743,6 +777,7 @@ async fn serve_openvpn(tcp: tokio::net::TcpStream, wrap: ServerWrap, opts: Serve
             while let Some(bytes) = out_rx.recv().await {
                 let packet = ControlPacket {
                     opcode: P_CONTROL_V1,
+                    key_id: 0,
                     local_session: server_session,
                     ack_ids: Vec::new(),
                     ack_remote_session: client_session,
@@ -804,9 +839,19 @@ async fn serve_openvpn(tcp: tokio::net::TcpStream, wrap: ServerWrap, opts: Serve
     tls.write_all(push_reply.as_bytes()).await.expect("write push reply");
     tls.flush().await.ok();
     drop(tls);
+    *tls_in.lock().unwrap() = None;
 
-    // 6. Data phase: a smoltcp stack that accepts the inner TCP and echoes.
-    run_data_plane(keys, out, &mut data_rx, opts.ping_seen).await;
+    // 6. Data phase: a smoltcp stack that accepts the inner TCP and echoes,
+    //    with soft-reset renegotiation support.
+    let rekey = DataPlaneRekey {
+        soft_rx,
+        tls_in,
+        wrap,
+        wrap_pid,
+        server_session,
+        client_session,
+    };
+    run_data_plane(keys, out, &mut data_rx, opts, Some(rekey)).await;
 }
 
 /// Serve one fake OpenVPN client over a connected UDP socket. Mirrors
@@ -841,6 +886,7 @@ async fn serve_openvpn_udp(socket: Arc<UdpSocket>, drop_first_reset: bool, wrap:
 
     let server_reset = ControlPacket {
         opcode: P_CONTROL_HARD_RESET_SERVER_V2,
+        key_id: 0,
         local_session: server_session,
         ack_ids: vec![reset.message_id],
         ack_remote_session: client_session,
@@ -876,6 +922,7 @@ async fn serve_openvpn_udp(socket: Arc<UdpSocket>, drop_first_reset: bool, wrap:
                         let ctrl = ControlPacket::decode(&wrap.unwrap(&buf[..n]));
                         let ack = ControlPacket {
                             opcode: P_ACK_V1,
+                            key_id: 0,
                             local_session: server_session,
                             ack_ids: vec![ctrl.message_id],
                             ack_remote_session: client_session,
@@ -893,6 +940,7 @@ async fn serve_openvpn_udp(socket: Arc<UdpSocket>, drop_first_reset: bool, wrap:
                         let ctrl = ControlPacket::decode(&wrap.unwrap(&buf[..n]));
                         let ack = ControlPacket {
                             opcode: P_ACK_V1,
+                            key_id: 0,
                             local_session: server_session,
                             ack_ids: vec![ctrl.message_id],
                             ack_remote_session: client_session,
@@ -923,6 +971,7 @@ async fn serve_openvpn_udp(socket: Arc<UdpSocket>, drop_first_reset: bool, wrap:
             while let Some(bytes) = out_rx.recv().await {
                 let packet = ControlPacket {
                     opcode: P_CONTROL_V1,
+                    key_id: 0,
                     local_session: server_session,
                     ack_ids: Vec::new(),
                     ack_remote_session: client_session,
@@ -982,7 +1031,7 @@ async fn serve_openvpn_udp(socket: Arc<UdpSocket>, drop_first_reset: bool, wrap:
     tls.flush().await.ok();
     drop(tls);
 
-    run_data_plane(keys, out, &mut data_rx, opts.ping_seen).await;
+    run_data_plane(keys, out, &mut data_rx, opts, None).await;
 }
 
 /// Read one length-prefixed OpenVPN packet, or `None` at EOF.
@@ -1001,12 +1050,118 @@ where
     Some(packet)
 }
 
+/// One negotiated data-channel key epoch on the server side.
+struct Epoch {
+    key_id: u8,
+    keys: ServerKeys,
+    send_pid: u32,
+}
+
+/// Open a new server-side key state for `key_id`: install a fresh TLS inbound
+/// queue, send the server's soft reset (acking the client's when replying to
+/// one), and run the TLS + key-method-2 exchange in a task that delivers the
+/// derived keys through `keys_tx`.
+async fn start_server_rekey(
+    rk: &DataPlaneRekey,
+    key_id: u8,
+    ack: Option<u32>,
+    out: &Out,
+    keys_tx: &mpsc::UnboundedSender<(u8, ServerKeys)>,
+) {
+    let (ctrl_tx, ctrl_rx) = mpsc::unbounded_channel::<Vec<u8>>();
+    *rk.tls_in.lock().unwrap() = Some(ctrl_tx);
+
+    // Fresh per-key-state message-id space, as upstream requires.
+    let send_msg = Arc::new(AtomicU32::new(0));
+    let reply = ControlPacket {
+        opcode: P_CONTROL_SOFT_RESET_V1,
+        key_id,
+        local_session: rk.server_session,
+        ack_ids: ack.into_iter().collect(),
+        ack_remote_session: rk.client_session,
+        message_id: send_msg.fetch_add(1, Ordering::Relaxed),
+        payload: Vec::new(),
+    };
+    out.send(
+        &rk.wrap
+            .wrap(&reply.encode(), rk.wrap_pid.fetch_add(1, Ordering::Relaxed)),
+    )
+    .await;
+
+    // Outbound pump: TLS writes become P_CONTROL_V1 messages under `key_id`.
+    let (out_tx, mut out_rx) = mpsc::unbounded_channel::<Vec<u8>>();
+    {
+        let out = out.clone();
+        let wrap = rk.wrap.clone();
+        let wrap_pid = rk.wrap_pid.clone();
+        let send_msg = send_msg.clone();
+        let (server_session, client_session) = (rk.server_session, rk.client_session);
+        tokio::spawn(async move {
+            while let Some(bytes) = out_rx.recv().await {
+                let packet = ControlPacket {
+                    opcode: P_CONTROL_V1,
+                    key_id,
+                    local_session: server_session,
+                    ack_ids: Vec::new(),
+                    ack_remote_session: client_session,
+                    message_id: send_msg.fetch_add(1, Ordering::Relaxed),
+                    payload: bytes,
+                };
+                out.send(&wrap.wrap(&packet.encode(), wrap_pid.fetch_add(1, Ordering::Relaxed)))
+                    .await;
+            }
+        });
+    }
+
+    let io = ControlIo {
+        inbound_rx: ctrl_rx,
+        leftover: Vec::new(),
+        leftover_pos: 0,
+        outbound_tx: out_tx,
+    };
+    let (server_session, client_session) = (rk.server_session, rk.client_session);
+    let keys_tx = keys_tx.clone();
+    tokio::spawn(async move {
+        let mut tls = tls_acceptor().accept(io).await.expect("rekey TLS handshake");
+        let (client_pre, client_r1, client_r2) = read_client_key_method(&mut tls).await;
+        let mut server_r1 = [0u8; 32];
+        let mut server_r2 = [0u8; 32];
+        getrandom::fill(&mut server_r1).unwrap();
+        getrandom::fill(&mut server_r2).unwrap();
+        tls.write_all(&server_key_method_record(&server_r1, &server_r2))
+            .await
+            .expect("write rekey server key method");
+        tls.flush().await.ok();
+        let keys = derive_server_keys(
+            &client_pre,
+            &client_r1,
+            &client_r2,
+            &server_r1,
+            &server_r2,
+            client_session,
+            server_session,
+        );
+        let _ = keys_tx.send((key_id, keys));
+    });
+}
+
+/// Await the next client soft reset, or pend forever when the connection has
+/// no rekey support (the UDP server).
+async fn next_soft_reset(rx: Option<&mut mpsc::UnboundedReceiver<ControlPacket>>) -> Option<ControlPacket> {
+    match rx {
+        Some(rx) => rx.recv().await,
+        None => std::future::pending().await,
+    }
+}
+
 async fn run_data_plane(
     keys: ServerKeys,
     out: Out,
     data_rx: &mut mpsc::UnboundedReceiver<Vec<u8>>,
-    ping_seen: Option<mpsc::UnboundedSender<()>>,
+    opts: ServerOpts,
+    mut rekey: Option<DataPlaneRekey>,
 ) {
+    let ping_seen = opts.ping_seen;
     let start = Instant::now();
     let mut phy = Phy {
         rx: VecDeque::new(),
@@ -1044,8 +1199,31 @@ async fn run_data_plane(
     udp_echo.bind(INNER_PORT).unwrap();
     let udp_handle = sockets.add(udp_echo);
 
-    let mut send_pid: u32 = 0;
+    // Key epochs, oldest first. The server keeps sending under the epoch of
+    // the newest key it has *received* client data under, so it never sends
+    // with keys the client may not have installed yet.
+    let mut epochs: Vec<Epoch> = vec![Epoch {
+        key_id: 0,
+        keys,
+        send_pid: 0,
+    }];
+    let mut send_idx: usize = 0;
+    let (keys_tx, mut keys_rx) = mpsc::unbounded_channel::<(u8, ServerKeys)>();
+    // Key ids whose renegotiation is underway or complete.
+    let mut known_key_ids: HashSet<u8> = HashSet::from([0]);
+    let mut initiate_at = opts
+        .initiate_rekey_after
+        .map(|after| tokio::time::Instant::now() + after);
+
     loop {
+        if let (Some(at), Some(rk)) = (initiate_at, rekey.as_ref())
+            && tokio::time::Instant::now() >= at
+        {
+            initiate_at = None;
+            known_key_ids.insert(1);
+            start_server_rekey(rk, 1, None, &out, &keys_tx).await;
+        }
+
         let now = now_since(start);
         iface.poll(now, &mut phy, &mut sockets);
 
@@ -1067,8 +1245,9 @@ async fn run_data_plane(
         }
 
         while let Some(pkt) = phy.tx.pop_front() {
-            send_pid = send_pid.wrapping_add(1);
-            let sealed = keys.seal(send_pid, &pkt);
+            let epoch = &mut epochs[send_idx];
+            epoch.send_pid = epoch.send_pid.wrapping_add(1);
+            let sealed = epoch.keys.seal(epoch.key_id, epoch.send_pid, &pkt);
             out.send(&sealed).await;
         }
 
@@ -1080,7 +1259,18 @@ async fn run_data_plane(
         tokio::select! {
             pkt = data_rx.recv() => match pkt {
                 Some(pkt) => {
-                    if let Some(plain) = keys.open(&pkt) {
+                    let key_id = pkt[0] & KEY_ID_MASK;
+                    if let Some(idx) = epochs.iter().position(|e| e.key_id == key_id)
+                        && let Some(plain) = epochs[idx].keys.open(&pkt)
+                    {
+                        if idx > send_idx {
+                            // First client data under the renegotiated key:
+                            // switch our send epoch to it.
+                            send_idx = idx;
+                            if let Some(tx) = &opts.rekey_done {
+                                let _ = tx.send(key_id);
+                            }
+                        }
                         if plain == SERVER_PING {
                             if let Some(tx) = &ping_seen {
                                 let _ = tx.send(());
@@ -1092,6 +1282,23 @@ async fn run_data_plane(
                 }
                 None => return,
             },
+            soft = next_soft_reset(rekey.as_mut().map(|r| &mut r.soft_rx)) => match soft {
+                Some(soft) => {
+                    // A client-initiated soft reset -- unless it belongs to a
+                    // renegotiation already underway (our own initiation, or a
+                    // retransmit of a reset we already answered).
+                    if known_key_ids.insert(soft.key_id) {
+                        let rk = rekey.as_ref().unwrap();
+                        start_server_rekey(rk, soft.key_id, Some(soft.message_id), &out, &keys_tx).await;
+                    }
+                }
+                None => rekey = None,
+            },
+            newly = keys_rx.recv() => {
+                if let Some((key_id, keys)) = newly {
+                    epochs.push(Epoch { key_id, keys, send_pid: 0 });
+                }
+            }
             _ = tokio::time::sleep(delay) => {}
         }
     }
@@ -1349,6 +1556,7 @@ async fn openvpn_sends_keepalive_pings_when_idle() {
     let opts = ServerOpts {
         push_extra: ",ping 1".into(),
         ping_seen: Some(ping_tx),
+        ..Default::default()
     };
     let config = start_server_opts(ServerWrap::None, "", opts).await;
     let target = TargetAddr::Ip(SocketAddr::new(IpAddr::V4(INNER_IP), INNER_PORT));
@@ -1371,7 +1579,7 @@ async fn openvpn_tears_down_after_ping_restart_expires() {
     // error on the relayed stream instead of hanging forever.
     let opts = ServerOpts {
         push_extra: ",ping-restart 1".into(),
-        ping_seen: None,
+        ..Default::default()
     };
     let config = start_server_opts(ServerWrap::None, "", opts).await;
     let target = TargetAddr::Ip(SocketAddr::new(IpAddr::V4(INNER_IP), INNER_PORT));
@@ -1412,6 +1620,108 @@ async fn openvpn_udp_recovers_from_a_dropped_hard_reset() {
     let payload = b"udp retransmit recovery";
     stream.write_all(payload).await.unwrap();
 
+    let mut got = vec![0u8; payload.len()];
+    stream.read_exact(&mut got).await.unwrap();
+    assert_eq!(&got, payload);
+}
+
+#[tokio::test]
+async fn openvpn_client_initiated_rekey_rotates_data_keys() {
+    // With `reneg-sec 2`, the client must soft-reset on its own, run a fresh
+    // TLS + key-method-2 exchange under key id 1, and keep the relayed stream
+    // alive across the rotation. The server reports the first data packet it
+    // decrypts under the new key.
+    let (rekey_tx, mut rekey_rx) = mpsc::unbounded_channel::<u8>();
+    let opts = ServerOpts {
+        rekey_done: Some(rekey_tx),
+        ..Default::default()
+    };
+    let config = start_server_opts(ServerWrap::None, "reneg-sec: 2\n", opts).await;
+    let target = TargetAddr::Ip(SocketAddr::new(IpAddr::V4(INNER_IP), INNER_PORT));
+
+    let mut stream = tokio::time::timeout(Duration::from_secs(20), openvpn::connect(&config, &target))
+        .await
+        .expect("connect did not time out")
+        .expect("openvpn connect");
+
+    // Traffic works under the initial key id 0...
+    let payload = b"before rekey";
+    stream.write_all(payload).await.unwrap();
+    let mut got = vec![0u8; payload.len()];
+    stream.read_exact(&mut got).await.unwrap();
+    assert_eq!(&got, payload);
+
+    // ...the client renegotiates on the reneg-sec timer...
+    let deadline = Instant::now() + Duration::from_secs(15);
+    loop {
+        assert!(Instant::now() < deadline, "client never rotated data keys");
+        // Keep traffic flowing so the server sees data under the new key.
+        stream.write_all(b"tick").await.unwrap();
+        let mut tick = [0u8; 4];
+        stream.read_exact(&mut tick).await.unwrap();
+        match tokio::time::timeout(Duration::from_millis(200), rekey_rx.recv()).await {
+            Ok(Some(key_id)) => {
+                assert_eq!(key_id, 1, "first renegotiated key id");
+                break;
+            }
+            Ok(None) => panic!("rekey channel closed"),
+            Err(_) => {}
+        }
+    }
+
+    // ...and the same relayed stream still round-trips afterwards.
+    let payload = b"after rekey";
+    stream.write_all(payload).await.unwrap();
+    let mut got = vec![0u8; payload.len()];
+    stream.read_exact(&mut got).await.unwrap();
+    assert_eq!(&got, payload);
+}
+
+#[tokio::test]
+async fn openvpn_answers_a_server_initiated_soft_reset() {
+    // The server sends `P_CONTROL_SOFT_RESET_V1` under key id 1 shortly after
+    // the data phase starts; the client must answer with its own soft reset,
+    // renegotiate, and move its data channel to the new key without dropping
+    // the relayed stream. `reneg-sec 0` disables the client's own timer so the
+    // rotation can only come from answering the server.
+    let (rekey_tx, mut rekey_rx) = mpsc::unbounded_channel::<u8>();
+    let opts = ServerOpts {
+        rekey_done: Some(rekey_tx),
+        initiate_rekey_after: Some(Duration::from_secs(1)),
+        ..Default::default()
+    };
+    let config = start_server_opts(ServerWrap::None, "reneg-sec: 0\n", opts).await;
+    let target = TargetAddr::Ip(SocketAddr::new(IpAddr::V4(INNER_IP), INNER_PORT));
+
+    let mut stream = tokio::time::timeout(Duration::from_secs(20), openvpn::connect(&config, &target))
+        .await
+        .expect("connect did not time out")
+        .expect("openvpn connect");
+
+    let payload = b"before server rekey";
+    stream.write_all(payload).await.unwrap();
+    let mut got = vec![0u8; payload.len()];
+    stream.read_exact(&mut got).await.unwrap();
+    assert_eq!(&got, payload);
+
+    let deadline = Instant::now() + Duration::from_secs(15);
+    loop {
+        assert!(Instant::now() < deadline, "client never answered the soft reset");
+        stream.write_all(b"tick").await.unwrap();
+        let mut tick = [0u8; 4];
+        stream.read_exact(&mut tick).await.unwrap();
+        match tokio::time::timeout(Duration::from_millis(200), rekey_rx.recv()).await {
+            Ok(Some(key_id)) => {
+                assert_eq!(key_id, 1, "server-chosen key id");
+                break;
+            }
+            Ok(None) => panic!("rekey channel closed"),
+            Err(_) => {}
+        }
+    }
+
+    let payload = b"after server rekey";
+    stream.write_all(payload).await.unwrap();
     let mut got = vec![0u8; payload.len()];
     stream.read_exact(&mut got).await.unwrap();
     assert_eq!(&got, payload);

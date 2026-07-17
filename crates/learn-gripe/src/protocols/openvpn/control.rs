@@ -24,11 +24,11 @@ use anyhow::{Result, anyhow};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf};
 use tokio::net::UdpSocket;
 use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
-use tokio::sync::{Mutex as AsyncMutex, mpsc};
+use tokio::sync::{Mutex as AsyncMutex, Notify, mpsc};
 
 use super::packet::{
-    ControlPacket, P_ACK_V1, P_CONTROL_HARD_RESET_CLIENT_V2, P_CONTROL_V1, SessionId, has_message_id,
-    parse_opcode_key_id,
+    ControlPacket, P_ACK_V1, P_CONTROL_HARD_RESET_CLIENT_V2, P_CONTROL_SOFT_RESET_V1, P_CONTROL_V1, SessionId,
+    has_message_id, parse_opcode_key_id,
 };
 use super::tlswrap::ControlWrap;
 
@@ -142,6 +142,9 @@ pub(super) async fn run_mux_udp(
 }
 
 struct ControlState {
+    /// Current key id, carried in every control packet. 0 for the initial key
+    /// state, bumped (1..=7, wrapping past 0) on each renegotiation.
+    key_id: u8,
     send_message: u32,
     recv_message: u32,
     ack_pending: Vec<u32>,
@@ -158,7 +161,6 @@ struct ControlState {
 pub(super) struct ControlChannel {
     writer: Arc<PacketWriter>,
     local: SessionId,
-    key_id: u8,
     /// Optional `tls-auth` / `tls-crypt` static protection applied to every
     /// control packet at write time (so retransmits carry fresh packet ids)
     /// and removed/verified on read.
@@ -177,9 +179,9 @@ impl ControlChannel {
         Self {
             writer,
             local,
-            key_id: 0,
             wrap,
             state: std::sync::Mutex::new(ControlState {
+                key_id: 0,
                 send_message: 0,
                 recv_message: 0,
                 ack_pending: Vec::new(),
@@ -204,6 +206,36 @@ impl ControlChannel {
         self.send(P_CONTROL_HARD_RESET_CLIENT_V2, &[]).await.map(|_| ())
     }
 
+    /// Send a soft reset, opening a new key state for renegotiation.
+    pub(super) async fn send_soft_reset(&self) -> Result<()> {
+        self.send(P_CONTROL_SOFT_RESET_V1, &[]).await.map(|_| ())
+    }
+
+    /// Reset the reliability layer for a new key state (renegotiation): fresh
+    /// message-id spaces in both directions, no pending acks or retransmits,
+    /// and `key_id` on every subsequent control packet. The session ids are
+    /// unchanged (a soft reset renegotiates keys within the same session).
+    pub(super) fn begin_rekey(&self, key_id: u8) {
+        let mut st = self.state.lock().expect("openvpn control state");
+        st.key_id = key_id;
+        st.send_message = 0;
+        st.recv_message = 0;
+        st.ack_pending.clear();
+        st.recv_pending.clear();
+        st.unacked.clear();
+    }
+
+    /// Register the peer's first message of a new key state (a soft reset that
+    /// was delivered before [`Self::begin_rekey`]) so it gets acked and
+    /// in-order delivery continues after it.
+    pub(super) fn note_remote_message(&self, message_id: u32) {
+        let mut st = self.state.lock().expect("openvpn control state");
+        st.recv_message = message_id.wrapping_add(1);
+        if !st.ack_pending.contains(&message_id) {
+            st.ack_pending.push(message_id);
+        }
+    }
+
     /// Send a reliable control message, folding any pending acks into it.
     pub(super) async fn send(&self, opcode: u8, payload: &[u8]) -> Result<u32> {
         let (message_id, packet) = {
@@ -214,7 +246,7 @@ impl ControlChannel {
             let remote = st.remote;
             let packet = ControlPacket {
                 opcode,
-                key_id: self.key_id,
+                key_id: st.key_id,
                 local_session: self.local,
                 ack_ids,
                 ack_remote_session: remote,
@@ -262,7 +294,7 @@ impl ControlChannel {
             let ack_ids = std::mem::take(&mut st.ack_pending);
             ControlPacket {
                 opcode: P_ACK_V1,
-                key_id: self.key_id,
+                key_id: st.key_id,
                 local_session: self.local,
                 ack_ids,
                 ack_remote_session: st.remote,
@@ -313,6 +345,15 @@ impl ControlChannel {
             let mut send_ack = false;
             {
                 let mut st = self.state.lock().expect("openvpn control state");
+                if packet.key_id != st.key_id {
+                    // A soft reset announces a new key state (peer-initiated
+                    // renegotiation): hand it to the caller untouched. Anything
+                    // else from a stale key state is dropped.
+                    if packet.opcode == P_CONTROL_SOFT_RESET_V1 {
+                        return Ok(packet);
+                    }
+                    continue;
+                }
                 if st.remote == [0u8; 8] && packet.local_session != self.local {
                     st.remote = packet.local_session;
                 }
@@ -361,6 +402,20 @@ pub(super) struct ControlTlsIo {
     outbound_tx: Option<mpsc::UnboundedSender<Vec<u8>>>,
 }
 
+impl ControlTlsIo {
+    pub(super) fn new(
+        inbound_rx: mpsc::UnboundedReceiver<Vec<u8>>,
+        outbound_tx: mpsc::UnboundedSender<Vec<u8>>,
+    ) -> Self {
+        Self {
+            inbound_rx,
+            leftover: Vec::new(),
+            leftover_pos: 0,
+            outbound_tx: Some(outbound_tx),
+        }
+    }
+}
+
 impl AsyncRead for ControlTlsIo {
     fn poll_read(self: Pin<&mut Self>, cx: &mut TaskContext<'_>, buf: &mut ReadBuf<'_>) -> Poll<std::io::Result<()>> {
         let this = self.get_mut();
@@ -407,10 +462,14 @@ impl AsyncWrite for ControlTlsIo {
 
 /// Spawn the two bridge tasks connecting `control` to a [`ControlTlsIo`]:
 /// outbound TLS bytes become control messages, inbound control payloads become
-/// TLS bytes. Once `handshake_done` is set the inbound task stops forwarding
-/// payloads but keeps reading + acking control packets so the mux never stalls
-/// (there is no control-channel renegotiation in this slice).
-pub(super) fn spawn_tls_bridge(control: Arc<ControlChannel>, handshake_done: Arc<AtomicBool>) -> ControlTlsIo {
+/// TLS bytes. Used for the initial handshake only; once it completes the
+/// caller fires `shutdown` and the renegotiation service takes over reading
+/// (and acking) the control channel.
+pub(super) fn spawn_tls_bridge(
+    control: Arc<ControlChannel>,
+    handshake_done: Arc<AtomicBool>,
+    shutdown: Arc<Notify>,
+) -> ControlTlsIo {
     let (in_tx, in_rx) = mpsc::unbounded_channel::<Vec<u8>>();
     let (out_tx, mut out_rx) = mpsc::unbounded_channel::<Vec<u8>>();
 
@@ -425,9 +484,12 @@ pub(super) fn spawn_tls_bridge(control: Arc<ControlChannel>, handshake_done: Arc
 
     tokio::spawn(async move {
         loop {
-            let packet = match control.read().await {
-                Ok(packet) => packet,
-                Err(_) => break,
+            let packet = tokio::select! {
+                _ = shutdown.notified() => break,
+                packet = control.read() => match packet {
+                    Ok(packet) => packet,
+                    Err(_) => break,
+                },
             };
             if control.send_ack().await.is_err() {
                 break;
@@ -438,10 +500,5 @@ pub(super) fn spawn_tls_bridge(control: Arc<ControlChannel>, handshake_done: Arc
         }
     });
 
-    ControlTlsIo {
-        inbound_rx: in_rx,
-        leftover: Vec::new(),
-        leftover_pos: 0,
-        outbound_tx: Some(out_tx),
-    }
+    ControlTlsIo::new(in_rx, out_tx)
 }

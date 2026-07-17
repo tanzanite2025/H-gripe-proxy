@@ -296,6 +296,10 @@ pub struct ProxyOptions {
     /// `key-direction` for `tls-auth` (`0` / `1`; absent = bidirectional).
     #[serde(rename = "key-direction")]
     pub key_direction: Option<u8>,
+    /// OpenVPN data-channel renegotiation interval in seconds (`reneg-sec`);
+    /// 0 disables client-initiated renegotiation. Defaults to 3600.
+    #[serde(rename = "reneg-sec")]
+    pub reneg_sec: Option<u64>,
 
     // Transport selection + typed option blocks.
     pub network: Option<Network>,

@@ -15,6 +15,7 @@ use tokio::sync::{Notify, mpsc, oneshot};
 use super::data::{DataChannel, PING_PACKET, is_ping};
 use super::device::Command;
 use super::netstack::{OvPhy, build_interface, ip_address, is_dead, smol_now};
+use super::packet::parse_opcode_key_id;
 use super::stream::{OvpnTcpStream, OvpnUdpAssoc};
 
 use crate::protocols::openvpn::control::PacketWriter;
@@ -49,8 +50,14 @@ pub(super) type WriterWakers = Arc<Mutex<Vec<Waker>>>;
 /// State owned by the per-tunnel poll loop.
 pub(super) struct DeviceLoop {
     data: DataChannel,
+    /// The previous key epoch, kept alive so in-flight packets sealed under the
+    /// old key still decrypt while the peer transitions after a renegotiation.
+    prev_data: Option<DataChannel>,
     writer: Arc<PacketWriter>,
     data_rx: mpsc::UnboundedReceiver<Vec<u8>>,
+    /// Replacement data channels from the renegotiation service.
+    rekey_rx: mpsc::UnboundedReceiver<DataChannel>,
+    rekey_closed: bool,
     commands: mpsc::Receiver<Command>,
     mtu: usize,
     local_v4: Ipv4Addr,
@@ -101,12 +108,16 @@ impl DeviceLoop {
         mtu: usize,
         local_v4: Ipv4Addr,
         keepalive: Keepalive,
+        rekey_rx: mpsc::UnboundedReceiver<DataChannel>,
     ) -> Self {
         let now = Instant::now();
         Self {
             data,
+            prev_data: None,
             writer,
             data_rx,
+            rekey_rx,
+            rekey_closed: false,
             commands,
             mtu,
             local_v4,
@@ -153,6 +164,10 @@ impl DeviceLoop {
                 pkt = self.data_rx.recv() => match pkt {
                     Some(pkt) => self.decapsulate(pkt, &mut phy),
                     None => return,
+                },
+                next = self.rekey_rx.recv(), if !self.rekey_closed => match next {
+                    Some(next) => self.prev_data = Some(std::mem::replace(&mut self.data, next)),
+                    None => self.rekey_closed = true,
                 },
                 _ = tokio::time::sleep(delay) => {}
             }
@@ -454,7 +469,16 @@ impl DeviceLoop {
     /// Decrypt one received data packet and hand the inner IP packet to smoltcp,
     /// dropping keepalive pings and anything that fails to decrypt / replays.
     fn decapsulate(&mut self, packet: Vec<u8>, phy: &mut OvPhy) {
-        if let Ok(plain) = self.data.decrypt(&packet) {
+        let Some(&first) = packet.first() else { return };
+        let (_, key_id) = parse_opcode_key_id(first);
+        let channel = if key_id == self.data.key_id() {
+            &mut self.data
+        } else if let Some(prev) = self.prev_data.as_mut().filter(|p| p.key_id() == key_id) {
+            prev
+        } else {
+            return; // unknown key epoch
+        };
+        if let Ok(plain) = channel.decrypt(&packet) {
             self.last_recv = Instant::now();
             if !plain.is_empty() && !is_ping(&plain) {
                 phy.rx.push_back(plain);
