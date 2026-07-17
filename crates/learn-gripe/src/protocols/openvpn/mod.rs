@@ -21,9 +21,10 @@
 //!   AEAD data channel is unreliable (inner TCP recovers loss).
 //! - **AEAD data ciphers only**: `AES-256-GCM` (default), `AES-128-GCM`,
 //!   `CHACHA20-POLY1305`. CBC + HMAC ciphers are rejected.
-//! - **TCP and UDP relay** through the tunnel (IPv4 inner targets only);
-//!   tunnel-side DNS is not implemented (targets resolve via the host
-//!   resolver).
+//! - **TCP and UDP relay** through the tunnel. Inner targets may be IPv4
+//!   and/or IPv6, gated on the tunnel address(es) the server pushes
+//!   (`ifconfig` / `ifconfig-ipv6`); tunnel-side DNS is not implemented
+//!   (targets resolve via the host resolver).
 //! - Server certificate pinned to the inline `ca`; optional client-certificate
 //!   (`cert`/`key`) and/or username/password auth.
 //! - **`tls-auth` / `tls-crypt` control-channel protection** from an inline
@@ -304,7 +305,7 @@ fn normalize_cipher(cipher: Option<&str>) -> Result<String> {
 /// (or lazily building) the per-config device.
 pub async fn connect(config: &OpenVpnOutboundConfig, target: &TargetAddr) -> Result<BoxedStream> {
     let device = OpenVpnDevice::get_or_create(config).await?;
-    let dst = resolve_target(target).await?;
+    let dst = resolve_target(&device, target).await?;
     let stream = device.open_tcp(dst).await?;
     Ok(Box::new(stream) as BoxedStream)
 }
@@ -312,27 +313,31 @@ pub async fn connect(config: &OpenVpnOutboundConfig, target: &TargetAddr) -> Res
 /// Open a relayed UDP association to `target` through the OpenVPN tunnel,
 /// reusing (or lazily building) the per-config device. Each association is a
 /// userspace smoltcp UDP socket; datagrams to the resolved destination are
-/// sealed into `P_DATA_V2` like the TCP flows. The inner stack is IPv4-only, so
-/// IPv6 destinations are rejected.
+/// sealed into `P_DATA_V2` like the TCP flows.
 pub async fn connect_udp(config: &OpenVpnOutboundConfig, target: &TargetAddr) -> Result<OvpnUdpAssoc> {
     let device = OpenVpnDevice::get_or_create(config).await?;
-    let dst = resolve_target(target).await?;
-    if !dst.is_ipv4() {
-        bail!("openvpn: inner relay is IPv4-only, cannot reach {dst}");
-    }
+    let dst = resolve_target(&device, target).await?;
     device.open_udp(dst).await
 }
 
 /// Resolve a relayed target to a literal socket address via the host resolver
-/// (tunnel-side DNS is not implemented in this slice).
-async fn resolve_target(target: &TargetAddr) -> Result<SocketAddr> {
+/// (tunnel-side DNS is not implemented in this slice). The address must be of
+/// a family the tunnel carries (the server pushed an `ifconfig` /
+/// `ifconfig-ipv6` address for it); domains pick the first supported address.
+async fn resolve_target(device: &OpenVpnDevice, target: &TargetAddr) -> Result<SocketAddr> {
     match target {
-        TargetAddr::Ip(addr) => Ok(*addr),
+        TargetAddr::Ip(addr) => {
+            if !device.supports(addr) {
+                let family = if addr.is_ipv4() { "IPv4" } else { "IPv6" };
+                bail!("openvpn: tunnel has no {family} address, cannot reach {addr}");
+            }
+            Ok(*addr)
+        }
         TargetAddr::Domain(host, port) => tokio::net::lookup_host((host.as_str(), *port))
             .await
             .with_context(|| format!("openvpn: resolve {host}:{port}"))?
-            .next()
-            .ok_or_else(|| anyhow!("openvpn: no addresses for {host}:{port}")),
+            .find(|addr| device.supports(addr))
+            .ok_or_else(|| anyhow!("openvpn: no addresses the tunnel can carry for {host}:{port}")),
     }
 }
 

@@ -54,6 +54,10 @@ pub(super) enum Command {
 /// Handle to a running OpenVPN tunnel device: the command channel into its loop.
 pub struct OpenVpnDevice {
     commands: mpsc::Sender<Command>,
+    /// Whether the server pushed an `ifconfig` (IPv4) tunnel address.
+    has_v4: bool,
+    /// Whether the server pushed an `ifconfig-ipv6` tunnel address.
+    has_v6: bool,
 }
 
 impl OpenVpnDevice {
@@ -206,6 +210,7 @@ impl OpenVpnDevice {
             commands_rx,
             config.mtu as usize,
             push.local_v4,
+            push.local_v6,
             keepalive,
             rekey_rx,
         );
@@ -229,7 +234,17 @@ impl OpenVpnDevice {
             rekey_tx,
         }));
 
-        Ok(Self { commands: commands_tx })
+        Ok(Self {
+            commands: commands_tx,
+            has_v4: push.local_v4.is_some(),
+            has_v6: push.local_v6.is_some(),
+        })
+    }
+
+    /// Whether the tunnel can carry inner packets of `dst`'s address family
+    /// (the server pushed a tunnel address for it).
+    pub(super) fn supports(&self, dst: &SocketAddr) -> bool {
+        if dst.is_ipv4() { self.has_v4 } else { self.has_v6 }
     }
 
     pub(super) async fn open_tcp(&self, dst: SocketAddr) -> Result<OvpnTcpStream> {

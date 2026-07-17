@@ -2,7 +2,7 @@
 //! through a smoltcp netstack whose inner IP packets are sealed into (and
 //! recovered from) the OpenVPN AEAD data channel.
 
-use std::net::Ipv4Addr;
+use std::net::{Ipv4Addr, Ipv6Addr};
 use std::sync::{Arc, Mutex};
 use std::task::Waker;
 use std::time::{Duration, Instant};
@@ -60,7 +60,8 @@ pub(super) struct DeviceLoop {
     rekey_closed: bool,
     commands: mpsc::Receiver<Command>,
     mtu: usize,
-    local_v4: Ipv4Addr,
+    local_v4: Option<Ipv4Addr>,
+    local_v6: Option<Ipv6Addr>,
     flows: Vec<OvpnFlow>,
     udp_flows: Vec<OvpnUdpFlow>,
     next_port: u16,
@@ -106,7 +107,8 @@ impl DeviceLoop {
         data_rx: mpsc::UnboundedReceiver<Vec<u8>>,
         commands: mpsc::Receiver<Command>,
         mtu: usize,
-        local_v4: Ipv4Addr,
+        local_v4: Option<Ipv4Addr>,
+        local_v6: Option<Ipv6Addr>,
         keepalive: Keepalive,
         rekey_rx: mpsc::UnboundedReceiver<DataChannel>,
     ) -> Self {
@@ -121,6 +123,7 @@ impl DeviceLoop {
             commands,
             mtu,
             local_v4,
+            local_v6,
             flows: Vec::new(),
             udp_flows: Vec::new(),
             next_port: 1024,
@@ -135,7 +138,7 @@ impl DeviceLoop {
     pub(super) async fn run(mut self) {
         let start = Instant::now();
         let mut phy = OvPhy::new(self.mtu);
-        let mut iface = build_interface(&mut phy, smol_now(start), self.local_v4);
+        let mut iface = build_interface(&mut phy, smol_now(start), self.local_v4, self.local_v6);
         let mut sockets = SocketSet::new(Vec::new());
 
         loop {
