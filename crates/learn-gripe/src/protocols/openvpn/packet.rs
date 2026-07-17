@@ -13,6 +13,7 @@ pub(super) const KEY_ID_MASK: u8 = 0x07;
 pub(super) const OPCODE_SHIFT: u8 = 3;
 
 pub(super) const P_CONTROL_HARD_RESET_CLIENT_V2: u8 = 7;
+pub(super) const P_CONTROL_HARD_RESET_CLIENT_V3: u8 = 10;
 pub(super) const P_CONTROL_HARD_RESET_SERVER_V2: u8 = 8;
 pub(super) const P_CONTROL_SOFT_RESET_V1: u8 = 3;
 pub(super) const P_CONTROL_V1: u8 = 4;
@@ -45,7 +46,7 @@ pub(super) fn is_control(opcode: u8) -> bool {
             | P_ACK_V1
             | P_CONTROL_HARD_RESET_CLIENT_V2
             | P_CONTROL_HARD_RESET_SERVER_V2
-            | 10
+            | P_CONTROL_HARD_RESET_CLIENT_V3
             | 11
     )
 }

@@ -78,6 +78,7 @@ const P_CONTROL_SOFT_RESET_V1: u8 = 3;
 const P_CONTROL_V1: u8 = 4;
 const P_ACK_V1: u8 = 5;
 const P_DATA_V2: u8 = 9;
+const P_CONTROL_HARD_RESET_CLIENT_V3: u8 = 10;
 
 fn opcode_of(b: u8) -> u8 {
     b >> OPCODE_SHIFT
@@ -138,13 +139,22 @@ impl ServerWrap {
     }
 
     fn tls_crypt() -> Self {
-        let key = static_key_bytes();
+        Self::tls_crypt_with(&static_key_bytes())
+    }
+
+    fn tls_crypt_with(key: &[u8; 256]) -> Self {
         Self::TlsCrypt {
             send_cipher: key[0..32].to_vec(),
             send_hmac: key[64..96].to_vec(),
             recv_cipher: key[128..160].to_vec(),
             recv_hmac: key[192..224].to_vec(),
         }
+    }
+
+    /// tls-crypt-v2: the same tls-crypt wire format keyed from the per-client
+    /// key `Kc` (which the server recovers from the WKc on the V3 hard reset).
+    fn tls_crypt_v2() -> Self {
+        Self::tls_crypt_with(&v2_client_kc())
     }
 
     /// Wrap one plaintext control packet (`op || session || rest`) for the wire.
@@ -236,6 +246,84 @@ impl ServerWrap {
             }
         }
     }
+}
+
+// --- server-side tls-crypt-v2 (per-client key + server-wrapped WKc) -----------
+
+/// The fixed per-client tls-crypt-v2 key `Kc`.
+fn v2_client_kc() -> [u8; 256] {
+    let mut key = [0u8; 256];
+    for (i, b) in key.iter_mut().enumerate() {
+        *b = (i as u8).wrapping_mul(13).wrapping_add(5);
+    }
+    key
+}
+
+/// The server key: `Ke` (AES-256-CTR) = first 32 bytes, `Ka` (HMAC-SHA256) =
+/// last 32 bytes.
+fn v2_server_key() -> [u8; 64] {
+    let mut key = [0u8; 64];
+    for (i, b) in key.iter_mut().enumerate() {
+        *b = (i as u8).wrapping_mul(7).wrapping_add(1);
+    }
+    key
+}
+
+/// User metadata carried inside the WKc (type byte 0x00 + free-form bytes).
+const V2_METADATA: &[u8] = b"\x00client-1";
+
+/// Build the WKc the way `openvpn --genkey tls-crypt-v2-client` does:
+/// `T || AES-256-CTR(Ke, IV=T[..16], Kc || metadata) || len`, with
+/// `T = HMAC-SHA256(Ka, len || Kc || metadata)`.
+fn v2_wkc() -> Vec<u8> {
+    let kc = v2_client_kc();
+    let server_key = v2_server_key();
+    let (ke, ka) = server_key.split_at(32);
+    let mut payload = kc.to_vec();
+    payload.extend_from_slice(V2_METADATA);
+    let len = (32 + payload.len() + 2) as u16;
+    let mut mac = <Hmac<Sha256> as Mac>::new_from_slice(ka).unwrap();
+    mac.update(&len.to_be_bytes());
+    mac.update(&payload);
+    let tag = mac.finalize().into_bytes();
+    let mut ct = payload;
+    let mut ctr = ctr::Ctr128BE::<Aes256>::new(ke.into(), tag[..16].into());
+    ctr.apply_keystream(&mut ct);
+    let mut wkc = tag.to_vec();
+    wkc.extend_from_slice(&ct);
+    wkc.extend_from_slice(&len.to_be_bytes());
+    wkc
+}
+
+/// The inline client key file: base64 of `Kc || WKc` between the v2 markers.
+fn v2_client_key_text() -> String {
+    use base64::Engine as _;
+    let mut raw = v2_client_kc().to_vec();
+    raw.extend_from_slice(&v2_wkc());
+    let b64 = base64::engine::general_purpose::STANDARD.encode(&raw);
+    format!("-----BEGIN OpenVPN tls-crypt-v2 client key-----\n{b64}\n-----END OpenVPN tls-crypt-v2 client key-----\n")
+}
+
+/// Server side of the V3 hard reset: split the cleartext WKc off the tail
+/// (via its trailing length field), unwrap it with the server key, check the
+/// recovered `Kc` + metadata, and return the inner tls-crypt packet.
+fn strip_and_verify_wkc(packet: &[u8]) -> Vec<u8> {
+    let len = u16::from_be_bytes(packet[packet.len() - 2..].try_into().unwrap()) as usize;
+    assert!(len >= 34 && len <= packet.len(), "WKc length field");
+    let (inner, wkc) = packet.split_at(packet.len() - len);
+    let tag = &wkc[..32];
+    let mut payload = wkc[32..len - 2].to_vec();
+    let server_key = v2_server_key();
+    let (ke, ka) = server_key.split_at(32);
+    let mut ctr = ctr::Ctr128BE::<Aes256>::new(ke.into(), tag[..16].into());
+    ctr.apply_keystream(&mut payload);
+    let mut mac = <Hmac<Sha256> as Mac>::new_from_slice(ka).unwrap();
+    mac.update(&(len as u16).to_be_bytes());
+    mac.update(&payload);
+    mac.verify_slice(tag).expect("WKc authentication");
+    assert_eq!(&payload[..256], &v2_client_kc()[..], "recovered Kc");
+    assert_eq!(&payload[256..], V2_METADATA, "WKc metadata");
+    inner.to_vec()
 }
 
 fn opcode_key_id(opcode: u8, key_id: u8) -> u8 {
@@ -707,11 +795,17 @@ async fn serve_openvpn(tcp: tokio::net::TcpStream, wrap: ServerWrap, opts: Serve
     let wrap_pid = Arc::new(AtomicU32::new(1));
 
     // 1. Hard-reset exchange. First framed packet must be the client reset.
-    let first = read_one_frame(&mut read_half).await.expect("client hard reset");
+    let mut first = read_one_frame(&mut read_half).await.expect("client hard reset");
+    if opcode_of(first[0]) == P_CONTROL_HARD_RESET_CLIENT_V3 {
+        first = strip_and_verify_wkc(&first);
+    }
     let first = wrap.unwrap(&first);
     let reset = ControlPacket::decode(&first);
-    assert_eq!(
-        reset.opcode, P_CONTROL_HARD_RESET_CLIENT_V2,
+    assert!(
+        matches!(
+            reset.opcode,
+            P_CONTROL_HARD_RESET_CLIENT_V2 | P_CONTROL_HARD_RESET_CLIENT_V3
+        ),
         "first packet is client reset"
     );
     let client_session = reset.local_session;
@@ -870,10 +964,17 @@ async fn serve_openvpn_udp(socket: Arc<UdpSocket>, drop_first_reset: bool, wrap:
         // Ignore the first hard reset; the client must retransmit it.
         n = socket.recv(&mut buf).await.expect("retransmitted client hard reset");
     }
-    let first = wrap.unwrap(&buf[..n]);
+    let mut first = buf[..n].to_vec();
+    if opcode_of(first[0]) == P_CONTROL_HARD_RESET_CLIENT_V3 {
+        first = strip_and_verify_wkc(&first);
+    }
+    let first = wrap.unwrap(&first);
     let reset = ControlPacket::decode(&first);
-    assert_eq!(
-        reset.opcode, P_CONTROL_HARD_RESET_CLIENT_V2,
+    assert!(
+        matches!(
+            reset.opcode,
+            P_CONTROL_HARD_RESET_CLIENT_V2 | P_CONTROL_HARD_RESET_CLIENT_V3
+        ),
         "first packet is client reset"
     );
     let client_session = reset.local_session;
@@ -935,9 +1036,13 @@ async fn serve_openvpn_udp(socket: Arc<UdpSocket>, drop_first_reset: bool, wrap:
                             let _ = ctrl_tx.send(ctrl.payload);
                         }
                     }
-                    P_CONTROL_HARD_RESET_CLIENT_V2 => {
+                    P_CONTROL_HARD_RESET_CLIENT_V2 | P_CONTROL_HARD_RESET_CLIENT_V3 => {
                         // A retransmitted hard reset: re-ack it.
-                        let ctrl = ControlPacket::decode(&wrap.unwrap(&buf[..n]));
+                        let mut raw = buf[..n].to_vec();
+                        if opcode_of(raw[0]) == P_CONTROL_HARD_RESET_CLIENT_V3 {
+                            raw = strip_and_verify_wkc(&raw);
+                        }
+                        let ctrl = ControlPacket::decode(&wrap.unwrap(&raw));
                         let ack = ControlPacket {
                             opcode: P_ACK_V1,
                             key_id: 0,
@@ -1521,6 +1626,51 @@ async fn openvpn_tcp_round_trips_with_tls_crypt() {
         .expect("openvpn connect");
 
     let payload = b"tls-crypt over tcp";
+    stream.write_all(payload).await.unwrap();
+
+    let mut got = vec![0u8; payload.len()];
+    stream.read_exact(&mut got).await.unwrap();
+    assert_eq!(&got, payload);
+}
+
+#[tokio::test]
+async fn openvpn_tcp_round_trips_with_tls_crypt_v2() {
+    // Client `tls-crypt-v2`: the V3 hard reset carries the server-wrapped WKc,
+    // which the fake server unwraps (verifying Kc + metadata) before speaking
+    // tls-crypt with the recovered per-client key.
+    let key = v2_client_key_text().replace('\n', "\\n");
+    let extra = format!("tls-crypt-v2: \"{key}\"\n");
+    let config = start_server_with(ServerWrap::tls_crypt_v2(), &extra).await;
+    let target = TargetAddr::Ip(SocketAddr::new(IpAddr::V4(INNER_IP), INNER_PORT));
+
+    let mut stream = tokio::time::timeout(Duration::from_secs(20), openvpn::connect(&config, &target))
+        .await
+        .expect("connect did not time out")
+        .expect("openvpn connect");
+
+    let payload = b"tls-crypt-v2 over tcp";
+    stream.write_all(payload).await.unwrap();
+
+    let mut got = vec![0u8; payload.len()];
+    stream.read_exact(&mut got).await.unwrap();
+    assert_eq!(&got, payload);
+}
+
+#[tokio::test]
+async fn openvpn_udp_round_trips_with_tls_crypt_v2() {
+    // Same over UDP, with the first hard reset dropped so the retransmitted V3
+    // reset (carrying the WKc again) completes the handshake.
+    let key = v2_client_key_text().replace('\n', "\\n");
+    let extra = format!("tls-crypt-v2: \"{key}\"\n");
+    let config = start_udp_server_with(true, ServerWrap::tls_crypt_v2(), &extra).await;
+    let target = TargetAddr::Ip(SocketAddr::new(IpAddr::V4(INNER_IP), INNER_PORT));
+
+    let mut stream = tokio::time::timeout(Duration::from_secs(20), openvpn::connect(&config, &target))
+        .await
+        .expect("connect did not time out")
+        .expect("openvpn connect");
+
+    let payload = b"tls-crypt-v2 over udp";
     stream.write_all(payload).await.unwrap();
 
     let mut got = vec![0u8; payload.len()];

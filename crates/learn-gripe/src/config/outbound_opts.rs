@@ -293,6 +293,10 @@ pub struct ProxyOptions {
     /// authentication (mutually exclusive with `tls-crypt`).
     #[serde(rename = "tls-auth")]
     pub tls_auth: Option<String>,
+    /// Inline "OpenVPN tls-crypt-v2 client key" for per-client control-channel
+    /// encryption (mutually exclusive with `tls-auth` and `tls-crypt`).
+    #[serde(rename = "tls-crypt-v2")]
+    pub tls_crypt_v2: Option<String>,
     /// `key-direction` for `tls-auth` (`0` / `1`; absent = bidirectional).
     #[serde(rename = "key-direction")]
     pub key_direction: Option<u8>,
