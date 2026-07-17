@@ -25,6 +25,10 @@ const KEY: &str = "interop-test-key";
 const TABLE_TYPE: &str = "prefer_entropy";
 
 fn config(port: u16, method: AeadMethod) -> SudokuOutboundConfig {
+    config_with(port, method, true)
+}
+
+fn config_with(port: u16, method: AeadMethod, pure_downlink: bool) -> SudokuOutboundConfig {
     SudokuOutboundConfig {
         server: "127.0.0.1".to_string(),
         port,
@@ -34,6 +38,7 @@ fn config(port: u16, method: AeadMethod) -> SudokuOutboundConfig {
         custom_pattern: String::new(),
         padding_min: 0,
         padding_max: 0,
+        pure_downlink,
     }
 }
 
@@ -41,10 +46,15 @@ fn config(port: u16, method: AeadMethod) -> SudokuOutboundConfig {
 /// the KIP `ClientHello`/`ServerHello` X25519 handshake, returning the rekeyed
 /// record stream positioned to read the next control message (`OpenTCP` or
 /// `StartUoT`). Shared by the TCP and UoT fake servers.
-async fn server_handshake(sock: TcpStream, method: AeadMethod) -> RecordStream<ObfsStream<TcpStream>> {
-    // Server obfuscation: decode the client's uplink, encode its downlink.
+async fn server_handshake(
+    sock: TcpStream,
+    method: AeadMethod,
+    downlink_packed: bool,
+) -> RecordStream<ObfsStream<TcpStream>> {
+    // Server obfuscation: decode the client's (pure) uplink, encode its
+    // downlink with the pure or packed codec to match the client's read path.
     let tables = table::new_directional_table(KEY, TABLE_TYPE, "").expect("server table");
-    let obfs = ObfsStream::new(sock, tables.downlink, tables.uplink, 0, 0);
+    let obfs = ObfsStream::new(sock, tables.downlink, tables.uplink, 0, 0, downlink_packed, false);
 
     // Record layer with swapped directional bases (server send = s2c).
     let (psk_c2s, psk_s2c) = derive_psk_bases(KEY);
@@ -81,9 +91,9 @@ async fn server_handshake(sock: TcpStream, method: AeadMethod) -> RecordStream<O
 
 /// Accept one connection and mirror the client stack, asserting the handshake
 /// fields and `OpenTCP` address, then echo all relayed bytes.
-async fn run_fake_server(listener: TcpListener, method: AeadMethod, expected_addr: Vec<u8>) {
+async fn run_fake_server(listener: TcpListener, method: AeadMethod, expected_addr: Vec<u8>, downlink_packed: bool) {
     let (sock, _) = listener.accept().await.expect("accept");
-    let mut rec = server_handshake(sock, method).await;
+    let mut rec = server_handshake(sock, method, downlink_packed).await;
 
     // --- OpenTCP request ---
     let (typ, addr) = read_message(&mut rec).await.expect("read OpenTCP");
@@ -110,7 +120,7 @@ async fn run_fake_server(listener: TcpListener, method: AeadMethod, expected_add
 /// reflected back as the reply's source address).
 async fn run_fake_uot_server(listener: TcpListener, method: AeadMethod, expected_addr: Vec<u8>) {
     let (sock, _) = listener.accept().await.expect("accept");
-    let mut rec = server_handshake(sock, method).await;
+    let mut rec = server_handshake(sock, method, false).await;
 
     // --- StartUoT preface (empty payload) ---
     let (typ, payload) = read_message(&mut rec).await.expect("read StartUoT");
@@ -144,15 +154,19 @@ async fn run_fake_uot_server(listener: TcpListener, method: AeadMethod, expected
 }
 
 async fn round_trip(method: AeadMethod, payload: Vec<u8>) {
+    round_trip_mode(method, payload, true).await;
+}
+
+async fn round_trip_mode(method: AeadMethod, payload: Vec<u8>, pure_downlink: bool) {
     let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
     let port = listener.local_addr().expect("addr").port();
 
     let target = TargetAddr::Domain("example.com".to_string(), 443);
     let expected_addr = kip::encode_address(&target).expect("encode addr");
 
-    let server = tokio::spawn(run_fake_server(listener, method, expected_addr));
+    let server = tokio::spawn(run_fake_server(listener, method, expected_addr, !pure_downlink));
 
-    let cfg = config(port, method);
+    let cfg = config_with(port, method, pure_downlink);
     let mut stream = connect(&cfg, &target).await.expect("client connect");
 
     stream.write_all(&payload).await.expect("client write");
@@ -183,6 +197,25 @@ async fn chacha_full_stack_round_trip_near_mtu() {
 #[tokio::test]
 async fn aes_gcm_full_stack_round_trip() {
     round_trip(AeadMethod::Aes128Gcm, (0..3000u32).map(|i| i as u8).collect()).await;
+}
+
+/// Full-stack TCP relay with `enable-pure-downlink: false`: the fake server
+/// encodes the downlink with the 6-bit packed codec and the client decodes it,
+/// while the uplink stays pure. Exercises small and near-MTU payloads.
+#[tokio::test]
+async fn packed_downlink_full_stack_round_trip() {
+    round_trip_mode(
+        AeadMethod::ChaCha20Poly1305,
+        b"packed downlink over the full sudoku stack".to_vec(),
+        false,
+    )
+    .await;
+    round_trip_mode(
+        AeadMethod::Aes128Gcm,
+        (0..1400u32).map(|i| (i * 7) as u8).collect(),
+        false,
+    )
+    .await;
 }
 
 /// Drive one or more UDP-over-TCP datagrams through the full stack against the

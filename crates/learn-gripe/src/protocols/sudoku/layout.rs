@@ -28,6 +28,18 @@ pub(crate) struct ByteLayout {
     pub(crate) hint_table: [bool; 256],
     /// Padding-byte pool (never overlaps `hint_table`).
     pub(crate) padding_pool: Vec<u8>,
+    /// The 6-bit "packed" downlink codec: `encode_group[group & 0x3F]` is the
+    /// wire byte carrying a 6-bit group; `decode_group[b]` / `group_valid[b]`
+    /// invert it for hint bytes.
+    encode_group: [u8; 64],
+    decode_group: [u8; 256],
+    group_valid: [bool; 256],
+    /// The single reserved byte that flushes the packed reader's bit buffer
+    /// (residual-bit boundary marker). Recognised as non-hint.
+    pub(crate) pad_marker: u8,
+    /// Padding pool used by the packed codec: `padding_pool` minus `pad_marker`
+    /// (the marker never doubles as ordinary padding).
+    pub(crate) packed_padding_pool: Vec<u8>,
 }
 
 impl ByteLayout {
@@ -43,6 +55,28 @@ impl ByteLayout {
     pub(crate) fn hint_byte(&self, val: u8, pos: u8) -> u8 {
         self.encode_hint[(val & 0x03) as usize][(pos & 0x0F) as usize]
     }
+
+    /// The wire byte carrying the 6-bit packed `group`.
+    pub(crate) fn group_byte(&self, group: u8) -> u8 {
+        self.encode_group[(group & 0x3F) as usize]
+    }
+
+    /// Decode a wire byte back to its 6-bit group; the bool is `false` when the
+    /// byte is not a valid packed hint.
+    pub(crate) fn decode_packed_group(&self, b: u8) -> (u8, bool) {
+        (self.decode_group[b as usize], self.group_valid[b as usize])
+    }
+}
+
+/// Build the packed padding pool (`padding_pool` minus `pad_marker`), falling
+/// back to the marker itself if that leaves the pool empty. Matches
+/// `NewPackedConn`'s pool construction.
+fn packed_pool(padding_pool: &[u8], pad_marker: u8) -> Vec<u8> {
+    let mut pool: Vec<u8> = padding_pool.iter().copied().filter(|&b| b != pad_marker).collect();
+    if pool.is_empty() {
+        pool.push(pad_marker);
+    }
+    pool
 }
 
 /// Resolve a single-direction layout. `mode` is a per-direction preference
@@ -75,18 +109,40 @@ fn ascii_layout() -> ByteLayout {
     }
 
     let mut hint_table = [false; 256];
-    for (b, slot) in hint_table.iter_mut().enumerate() {
-        if (b as u8) & 0x40 == 0x40 {
-            *slot = true;
+    let mut decode_group = [0u8; 256];
+    let mut group_valid = [false; 256];
+    for b in 0..256usize {
+        let wire = b as u8;
+        if wire & 0x40 == 0x40 {
+            hint_table[b] = true;
+            decode_group[b] = wire & 0x3F;
+            group_valid[b] = true;
         }
     }
     hint_table[b'\n' as usize] = true;
+    decode_group[b'\n' as usize] = 0x3F;
+    group_valid[b'\n' as usize] = true;
 
+    let mut encode_group = [0u8; 64];
+    for (group, slot) in encode_group.iter_mut().enumerate() {
+        let mut b = 0x40 | group as u8;
+        if b == 0x7F {
+            b = b'\n';
+        }
+        *slot = b;
+    }
+
+    let pad_marker = 0x3F;
     ByteLayout {
         name: "ascii".to_string(),
         encode_hint,
         hint_table,
+        packed_padding_pool: packed_pool(&padding, pad_marker),
         padding_pool: padding,
+        encode_group,
+        decode_group,
+        group_valid,
+        pad_marker,
     }
 }
 
@@ -104,19 +160,36 @@ fn entropy_layout() -> ByteLayout {
         }
     }
 
-    let mut hint_table = [false; 256];
-    for (b, slot) in hint_table.iter_mut().enumerate() {
-        if (b as u8) & 0x90 != 0 {
-            continue;
-        }
-        *slot = true;
+    let mut encode_group = [0u8; 64];
+    for (group, slot) in encode_group.iter_mut().enumerate() {
+        let v = group as u8;
+        *slot = ((v & 0x30) << 1) | (v & 0x0F);
     }
 
+    let mut hint_table = [false; 256];
+    let mut decode_group = [0u8; 256];
+    let mut group_valid = [false; 256];
+    for b in 0..256usize {
+        let wire = b as u8;
+        if wire & 0x90 != 0 {
+            continue;
+        }
+        hint_table[b] = true;
+        decode_group[b] = ((wire >> 1) & 0x30) | (wire & 0x0F);
+        group_valid[b] = true;
+    }
+
+    let pad_marker = 0x80;
     ByteLayout {
         name: "entropy".to_string(),
         encode_hint,
         hint_table,
+        packed_padding_pool: packed_pool(&padding, pad_marker),
         padding_pool: padding,
+        encode_group,
+        decode_group,
+        group_valid,
+        pad_marker,
     }
 }
 
@@ -191,18 +264,50 @@ fn custom_layout(pattern: &str) -> Result<ByteLayout> {
         }
     }
 
-    let mut hint_table = [false; 256];
-    for (b, slot) in hint_table.iter_mut().enumerate() {
-        let wire = b as u8;
-        if wire & x_mask == x_mask {
-            *slot = true;
-        }
+    let mut encode_group = [0u8; 64];
+    for (group, slot) in encode_group.iter_mut().enumerate() {
+        let val = (group as u8 >> 4) & 0x03;
+        let pos = group as u8 & 0x0F;
+        *slot = encode_bits(val, pos, -1);
     }
 
+    let mut hint_table = [false; 256];
+    let mut decode_group = [0u8; 256];
+    let mut group_valid = [false; 256];
+    for b in 0..256usize {
+        let wire = b as u8;
+        if wire & x_mask != x_mask {
+            continue;
+        }
+        hint_table[b] = true;
+
+        let mut val = 0u8;
+        if wire & (1 << p_bits[0]) != 0 {
+            val |= 0x02;
+        }
+        if wire & (1 << p_bits[1]) != 0 {
+            val |= 0x01;
+        }
+        let mut pos = 0u8;
+        for (i, &bit) in v_bits.iter().enumerate() {
+            if wire & (1 << bit) != 0 {
+                pos |= 1 << (3 - i as u8);
+            }
+        }
+        decode_group[b] = (val << 4) | pos;
+        group_valid[b] = true;
+    }
+
+    let pad_marker = padding[0];
     Ok(ByteLayout {
         name: format!("custom({cleaned})"),
         encode_hint,
         hint_table,
+        packed_padding_pool: packed_pool(&padding, pad_marker),
         padding_pool: padding,
+        encode_group,
+        decode_group,
+        group_valid,
+        pad_marker,
     })
 }
