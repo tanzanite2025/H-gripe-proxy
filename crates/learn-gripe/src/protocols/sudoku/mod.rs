@@ -28,13 +28,16 @@
 //! (`enable-pure-downlink: true`, the default) or the bandwidth-optimised
 //! 6-bit *packed* codec (`enable-pure-downlink: false`). With `multiplex: on`
 //! the TCP data plane multiplexes logical streams over one shared tunnel via
-//! `StartMux` (see [`mux`]); UDP still rides its own `StartUoT` tunnel. The
-//! reverse channel and HTTP tunnel masking are intentionally left to follow-up
-//! work and are rejected up front rather than mis-handled.
+//! `StartMux` (see [`mux`]); UDP still rides its own `StartUoT` tunnel. Legacy
+//! HTTP masking (a one-shot fake request-header prefix, see [`mask`]) is
+//! supported; the CDN-friendly HTTP tunnel modes (`stream`/`poll`/`auto`/`ws`)
+//! and the reverse channel are intentionally left to follow-up work and are
+//! rejected up front rather than mis-handled.
 
 mod grid;
 mod kip;
 mod layout;
+mod mask;
 mod mux;
 mod obfs;
 mod record;
@@ -77,6 +80,10 @@ pub struct SudokuOutboundConfig {
     /// Multiplex logical streams over one shared tunnel via `StartMux` when
     /// `true` (`multiplex: on`); otherwise one tunnel per connection.
     session_mux: bool,
+    /// Legacy HTTP masking parameters when enabled (`httpmask` with mode
+    /// empty/`legacy`); `None` disables masking. The CDN HTTP tunnel modes
+    /// (`stream`/`poll`/`auto`/`ws`) are rejected at config time.
+    http_mask: Option<mask::HttpMaskConfig>,
 }
 
 impl SudokuOutboundConfig {
@@ -84,10 +91,11 @@ impl SudokuOutboundConfig {
     ///
     /// The uplink is always the pure (one-byte → four-hint) codec; the downlink
     /// follows `enable-pure-downlink` (default `true` = pure, `false` = 6-bit
-    /// packed). HTTP masking must be disabled. The tunnel then carries both TCP
-    /// (`OpenTCP`, or `StartMux` when `multiplex: on`) and UDP (`StartUoT`)
-    /// traffic. The reverse channel is deferred to follow-up work; a non-disabled
-    /// HTTP mask is rejected here rather than silently mis-handled.
+    /// packed). Legacy HTTP masking (mode empty/`legacy`) prefixes the stream
+    /// with a fake request header; the CDN HTTP tunnel modes
+    /// (`stream`/`poll`/`auto`/`ws`) are rejected here. The tunnel then carries
+    /// both TCP (`OpenTCP`, or `StartMux` when `multiplex: on`) and UDP
+    /// (`StartUoT`) traffic. The reverse channel is deferred to follow-up work.
     pub fn from_proxy(entry: &ProxyEntry) -> Result<Self> {
         let opts = &entry.options;
         let server = opts
@@ -117,13 +125,31 @@ impl SudokuOutboundConfig {
             .map(|m| m.trim().eq_ignore_ascii_case("on"))
             .unwrap_or(false);
 
-        // HTTP masking (legacy header and CDN tunnel) is not implemented; only an
-        // explicitly disabled mask is accepted.
-        if let Some(mask) = &opts.httpmask
-            && mask.disable != Some(true)
-        {
-            bail!("sudoku: HTTP masking is not supported yet; set httpmask.disable: true");
-        }
+        // HTTP masking: the legacy one-shot fake-header prefix (mode empty or
+        // `legacy`) is supported; the CDN HTTP tunnel modes are not yet.
+        let http_mask = match &opts.httpmask {
+            Some(m) if m.disable != Some(true) => {
+                let mode = m.mode.as_deref().unwrap_or("").trim().to_ascii_lowercase();
+                match mode.as_str() {
+                    "stream" | "poll" | "auto" | "ws" => bail!(
+                        "sudoku: HTTP tunnel mode {mode:?} is not supported yet; use legacy masking (omit httpmask.mode) or set httpmask.disable: true"
+                    ),
+                    "" | "legacy" => {
+                        let host = m
+                            .host
+                            .clone()
+                            .filter(|s| !s.is_empty())
+                            .unwrap_or_else(|| format!("{server}:{port}"));
+                        Some(mask::HttpMaskConfig {
+                            host,
+                            path_root: m.path_root.clone().unwrap_or_default(),
+                        })
+                    }
+                    other => bail!("sudoku: unknown httpmask.mode {other:?}"),
+                }
+            }
+            _ => None,
+        };
 
         let table_type = opts.table_type.clone().unwrap_or_default();
         let custom_pattern = opts
@@ -148,6 +174,7 @@ impl SudokuOutboundConfig {
             padding_max: opts.padding_max.unwrap_or(0),
             pure_downlink,
             session_mux,
+            http_mask,
         })
     }
 }
@@ -163,9 +190,16 @@ async fn establish_session(config: &SudokuOutboundConfig) -> Result<BoxedStream>
         .context("sudoku: build obfuscation table")?;
     let table::DirectionalTable { uplink, downlink } = tables;
 
-    let inner = transport::establish(&config.server, config.port, &Security::None, &Transport::Tcp)
+    let mut inner = transport::establish(&config.server, config.port, &Security::None, &Transport::Tcp)
         .await
         .context("sudoku: dial server")?;
+
+    // Legacy HTTP masking: write one fake request header before the raw stream.
+    if let Some(mask_cfg) = &config.http_mask {
+        mask::write_request_header(&mut inner, mask_cfg)
+            .await
+            .context("sudoku: write HTTP mask header")?;
+    }
 
     // Outermost on-wire layer: expand record bytes into Sudoku hint bytes. The
     // client always writes the pure uplink; its downlink read path switches to
@@ -211,6 +245,55 @@ pub async fn connect(config: &SudokuOutboundConfig, target: &TargetAddr) -> Resu
         .await
         .with_context(|| format!("sudoku: OpenTCP to {target}"))?;
     Ok(stream)
+}
+
+#[cfg(test)]
+mod config_tests {
+    use super::*;
+
+    fn parse(yaml: &str) -> Result<SudokuOutboundConfig> {
+        let entry: ProxyEntry = serde_yaml_ng::from_str(yaml).expect("valid proxy entry");
+        SudokuOutboundConfig::from_proxy(&entry)
+    }
+
+    const BASE: &str = "name: s\ntype: sudoku\nserver: example.com\nport: 443\nkey: secret\n";
+
+    #[test]
+    fn absent_or_disabled_mask_leaves_no_masking() {
+        assert!(parse(BASE).expect("base").http_mask.is_none());
+        let disabled = parse(&format!("{BASE}httpmask:\n  disable: true\n")).expect("disabled");
+        assert!(disabled.http_mask.is_none());
+    }
+
+    #[test]
+    fn legacy_mask_is_enabled_with_defaults_and_overrides() {
+        let default = parse(&format!("{BASE}httpmask:\n  disable: false\n")).expect("legacy");
+        let mask = default.http_mask.expect("mask present");
+        assert_eq!(mask.host, "example.com:443");
+        assert_eq!(mask.path_root, "");
+
+        let overridden = parse(&format!(
+            "{BASE}httpmask:\n  mode: legacy\n  host: cdn.example.net\n  path-root: aabbcc\n"
+        ))
+        .expect("legacy override");
+        let mask = overridden.http_mask.expect("mask present");
+        assert_eq!(mask.host, "cdn.example.net");
+        assert_eq!(mask.path_root, "aabbcc");
+    }
+
+    #[test]
+    fn cdn_tunnel_modes_are_rejected() {
+        for mode in ["stream", "poll", "auto", "ws"] {
+            let err = parse(&format!("{BASE}httpmask:\n  mode: {mode}\n")).unwrap_err();
+            assert!(err.to_string().contains("not supported yet"), "{mode}: {err}");
+        }
+    }
+
+    #[test]
+    fn unknown_mask_mode_is_rejected() {
+        let err = parse(&format!("{BASE}httpmask:\n  mode: bogus\n")).unwrap_err();
+        assert!(err.to_string().contains("unknown httpmask.mode"), "{err}");
+    }
 }
 
 #[cfg(test)]
