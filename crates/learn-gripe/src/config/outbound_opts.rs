@@ -444,20 +444,25 @@ pub struct ProxyOptions {
     /// Maximum per-byte padding probability percentage (`padding-max`).
     #[serde(rename = "padding-max")]
     pub padding_max: Option<u32>,
-    /// Sudoku HTTP-masking options (`httpmask`). The kernel supports only the
-    /// disabled form; a non-disabled mask is rejected.
+    /// Sudoku HTTP-masking options (`httpmask`). The kernel supports the
+    /// disabled form and the legacy fake-header mask (mode empty/`legacy`); the
+    /// CDN HTTP tunnel modes are rejected.
     pub httpmask: Option<SudokuHttpMask>,
 }
 
-/// Sudoku HTTP-masking options (`httpmask`). Only the `disable` flag is honoured
-/// by the kernel; the remaining fields are parsed for completeness so a config
-/// that disables masking round-trips cleanly.
+/// Sudoku HTTP-masking options (`httpmask`). The kernel supports the disabled
+/// form and the legacy fake-header mask (mode empty/`legacy`); the CDN HTTP
+/// tunnel modes (`stream`/`poll`/`auto`/`ws`) are rejected at config time.
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(default)]
 pub struct SudokuHttpMask {
     pub disable: Option<bool>,
     pub mode: Option<String>,
     pub host: Option<String>,
+    /// Optional single first-level path prefix (`path-root`) applied to the
+    /// masked request path, e.g. `aabbcc` => `/aabbcc/...`.
+    #[serde(rename = "path-root")]
+    pub path_root: Option<String>,
     #[serde(rename = "type")]
     pub kind: Option<String>,
 }

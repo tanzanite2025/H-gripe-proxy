@@ -40,6 +40,7 @@ fn config_with(port: u16, method: AeadMethod, pure_downlink: bool) -> SudokuOutb
         padding_max: 0,
         pure_downlink,
         session_mux: false,
+        http_mask: None,
     }
 }
 
@@ -48,6 +49,42 @@ fn config_mux(port: u16, method: AeadMethod) -> SudokuOutboundConfig {
         session_mux: true,
         ..config_with(port, method, true)
     }
+}
+
+fn config_masked(port: u16, method: AeadMethod, path_root: &str) -> SudokuOutboundConfig {
+    SudokuOutboundConfig {
+        http_mask: Some(super::mask::HttpMaskConfig {
+            host: format!("127.0.0.1:{port}"),
+            path_root: path_root.to_string(),
+        }),
+        ..config_with(port, method, true)
+    }
+}
+
+/// Read and discard a masking HTTP/1.1 request header from `sock` byte-by-byte
+/// (so no Sudoku stream bytes are over-read), asserting a valid request line and
+/// a `\r\n\r\n` terminator. Returns the request line for further assertions.
+async fn consume_http_header(sock: &mut TcpStream) -> String {
+    let mut header: Vec<u8> = Vec::new();
+    let mut one = [0u8; 1];
+    loop {
+        sock.read_exact(&mut one).await.expect("read mask header byte");
+        header.push(one[0]);
+        if header.ends_with(b"\r\n\r\n") {
+            break;
+        }
+        assert!(header.len() < 64 * 1024, "mask header too large");
+    }
+    let text = String::from_utf8(header).expect("ascii mask header");
+    let line = text.lines().next().expect("request line").to_string();
+    assert!(line.ends_with(" HTTP/1.1"), "unexpected request line: {line:?}");
+    assert!(
+        ["GET ", "POST ", "HEAD ", "PUT ", "DELETE ", "OPTIONS ", "PATCH "]
+            .iter()
+            .any(|m| line.starts_with(m)),
+        "invalid masked method: {line:?}"
+    );
+    line
 }
 
 /// Mirror the client stack (obfuscation + record with swapped bases) and run
@@ -121,6 +158,73 @@ async fn run_fake_server(listener: TcpListener, method: AeadMethod, expected_add
             }
         }
     }
+}
+
+/// Like [`run_fake_server`] but first consumes a legacy HTTP-mask request header
+/// (asserting its `path-root` when one is configured) before running the raw
+/// Sudoku handshake and echoing relayed bytes.
+async fn run_fake_masked_server(
+    listener: TcpListener,
+    method: AeadMethod,
+    expected_addr: Vec<u8>,
+    expected_path_root: Option<&str>,
+) {
+    let (mut sock, _) = listener.accept().await.expect("accept");
+    let line = consume_http_header(&mut sock).await;
+    if let Some(root) = expected_path_root {
+        let path = line.split(' ').nth(1).expect("request path");
+        assert!(
+            path.starts_with(&format!("/{root}/")),
+            "masked path {path:?} missing path-root /{root}/"
+        );
+    }
+
+    let mut rec = server_handshake(sock, method, false).await;
+
+    let (typ, addr) = read_message(&mut rec).await.expect("read OpenTCP");
+    assert_eq!(typ, KIP_TYPE_OPEN_TCP);
+    assert_eq!(addr, expected_addr, "OpenTCP address mismatch");
+
+    let mut buf = vec![0u8; 16 * 1024];
+    loop {
+        match rec.read(&mut buf).await {
+            Ok(0) | Err(_) => break,
+            Ok(n) => {
+                if rec.write_all(&buf[..n]).await.is_err() {
+                    break;
+                }
+                let _ = rec.flush().await;
+            }
+        }
+    }
+}
+
+/// Full-stack TCP relay with legacy HTTP masking enabled: the client prefixes a
+/// fake HTTP request header, the fake server consumes it (validating the
+/// `path-root`) and then relays over the raw Sudoku stack.
+#[tokio::test]
+async fn legacy_http_mask_full_stack_round_trip() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
+    let port = listener.local_addr().expect("addr").port();
+
+    let method = AeadMethod::ChaCha20Poly1305;
+    let target = TargetAddr::Domain("masked.example".to_string(), 8443);
+    let expected_addr = kip::encode_address(&target).expect("encode addr");
+    let server = tokio::spawn(run_fake_masked_server(listener, method, expected_addr, Some("aabbcc")));
+
+    let cfg = config_masked(port, method, "aabbcc");
+    let mut stream = connect(&cfg, &target).await.expect("masked client connect");
+
+    let payload = b"legacy http-masked sudoku relay".to_vec();
+    stream.write_all(&payload).await.expect("client write");
+    stream.flush().await.expect("client flush");
+
+    let mut got = vec![0u8; payload.len()];
+    stream.read_exact(&mut got).await.expect("client read echo");
+    assert_eq!(got, payload);
+
+    drop(stream);
+    let _ = server.await;
 }
 
 /// Accept one connection, run the handshake, read the `StartUoT` preface, then
