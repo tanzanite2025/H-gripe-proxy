@@ -11,7 +11,7 @@ use std::time::Duration;
 use anyhow::{Context, Result, anyhow, bail};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpStream, UdpSocket};
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::{Notify, mpsc, oneshot};
 use tokio_rustls::TlsConnector;
 
 use super::OpenVpnOutboundConfig;
@@ -23,6 +23,7 @@ use super::keymethod::{
 };
 use super::packet::{P_CONTROL_HARD_RESET_SERVER_V2, new_session_id};
 use super::push::{PUSH_REQUEST, PushReply, parse_push_reply};
+use super::rekey::{self, RekeyContext};
 use super::stream::{OvpnTcpStream, OvpnUdpAssoc};
 use super::tls;
 
@@ -139,7 +140,8 @@ impl OpenVpnDevice {
         wait_server_reset(&control).await?;
 
         // 2. TLS handshake tunnelled over P_CONTROL_V1 messages.
-        let io = spawn_tls_bridge(control.clone(), handshake_done.clone());
+        let bridge_shutdown = Arc::new(Notify::new());
+        let io = spawn_tls_bridge(control.clone(), handshake_done.clone(), bridge_shutdown.clone());
         let tls_config = tls::build_client_config(
             &config.ca_pem,
             config.client_cert_pem.as_deref(),
@@ -184,15 +186,19 @@ impl OpenVpnDevice {
         let push = read_push_reply(&mut stream, leftover).await?;
 
         handshake_done.store(true, Ordering::Relaxed);
-        drop(stream); // ends the outbound TLS bridge; inbound drain keeps acking
+        drop(stream);
+        // Stop the handshake bridge; the renegotiation service takes over
+        // reading (and acking) the control channel.
+        bridge_shutdown.notify_one();
 
         // 5. Bring up the data channel + netstack poll loop.
-        let data = DataChannel::new(&keys, &config.cipher, push.peer_id)?;
+        let data = DataChannel::new(&keys, &config.cipher, push.peer_id, 0)?;
         let (commands_tx, commands_rx) = mpsc::channel::<Command>(CHANNEL_DEPTH);
         let keepalive = Keepalive {
             ping_interval: push.ping_interval,
             ping_restart: push.ping_restart,
         };
+        let (rekey_tx, rekey_rx) = mpsc::unbounded_channel::<DataChannel>();
         let device_loop = DeviceLoop::new(
             data,
             writer,
@@ -201,8 +207,27 @@ impl OpenVpnDevice {
             config.mtu as usize,
             push.local_v4,
             keepalive,
+            rekey_rx,
         );
         tokio::spawn(device_loop.run());
+
+        // 6. The renegotiation service: drains the control channel and rotates
+        //    the data keys on the `reneg-sec` timer or a server soft reset.
+        tokio::spawn(rekey::run(RekeyContext {
+            control,
+            connector,
+            server_name: tls::server_name(&config.server),
+            options: options_string(!config.udp, &config.cipher, &config.auth_digest),
+            peer_info: peer_info(&config.cipher),
+            username: config.username.clone().unwrap_or_default(),
+            password: config.password.clone().unwrap_or_default(),
+            cipher: config.cipher.clone(),
+            key_len: cipher_key_len(&config.cipher),
+            peer_id: push.peer_id,
+            udp: config.udp,
+            interval: (config.reneg_sec > 0).then(|| Duration::from_secs(config.reneg_sec)),
+            rekey_tx,
+        }));
 
         Ok(Self { commands: commands_tx })
     }
@@ -261,7 +286,7 @@ async fn wait_server_reset(control: &ControlChannel) -> Result<()> {
 /// Read the full server key-method-2 record from the TLS control stream,
 /// returning it plus any bytes read past the record (which belong to the next
 /// message).
-async fn read_server_key_method<S>(stream: &mut S) -> Result<(ServerKeyMethod2, Vec<u8>)>
+pub(super) async fn read_server_key_method<S>(stream: &mut S) -> Result<(ServerKeyMethod2, Vec<u8>)>
 where
     S: AsyncRead + Unpin,
 {

@@ -35,6 +35,11 @@
 //!   options: the device loop sends the fixed data-channel ping when the send
 //!   side is idle past the ping interval, and tears the tunnel down (upstream's
 //!   `ping-restart`) after that much receive-side silence.
+//! - **Data-channel renegotiation** (`reneg-sec`, default 3600s; 0 disables):
+//!   the client rotates keys on a timer via a `P_CONTROL_SOFT_RESET_V1`
+//!   exchange — a fresh TLS handshake + key-method-2 under the next key id —
+//!   and also answers a server-initiated soft reset. The previous key epoch
+//!   keeps decrypting in-flight packets during the transition. See [`rekey`].
 //! - No compression. Unsupported option combinations fail explicitly rather
 //!   than silently degrading.
 
@@ -46,6 +51,7 @@ mod keymethod;
 mod netstack;
 mod packet;
 mod push;
+mod rekey;
 mod stream;
 mod tls;
 mod tlswrap;
@@ -66,6 +72,9 @@ pub use stream::OvpnUdpAssoc;
 const DEFAULT_MTU: u32 = 1500;
 /// Default AEAD data cipher when the config omits `cipher`.
 const DEFAULT_CIPHER: &str = "AES-256-GCM";
+/// Default data-channel renegotiation interval in seconds (upstream's
+/// `reneg-sec` default).
+const DEFAULT_RENEG_SEC: u64 = 3600;
 
 /// Parsed OpenVPN outbound configuration for the implemented subset.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -93,6 +102,9 @@ pub struct OpenVpnOutboundConfig {
     /// Whether the tunnel transport is UDP (`true`) or TCP (`false`).
     udp: bool,
     mtu: u32,
+    /// Data-channel renegotiation interval in seconds (`reneg-sec`); 0 disables
+    /// client-initiated renegotiation.
+    reneg_sec: u64,
 }
 
 impl OpenVpnOutboundConfig {
@@ -186,6 +198,7 @@ impl OpenVpnOutboundConfig {
         }
 
         let mtu = opts.mtu.filter(|m| *m >= 576).unwrap_or(DEFAULT_MTU);
+        let reneg_sec = opts.reneg_sec.unwrap_or(DEFAULT_RENEG_SEC);
 
         Ok(Self {
             server,
@@ -202,6 +215,7 @@ impl OpenVpnOutboundConfig {
             auth_digest,
             udp,
             mtu,
+            reneg_sec,
         })
     }
 
@@ -228,10 +242,11 @@ impl OpenVpnOutboundConfig {
         let cred_tag = cred.finalize();
         let proto = if self.udp { "udp" } else { "tcp" };
         format!(
-            "{}:{}|{proto}|{}|{}|{cred_tag:08x}",
+            "{}:{}|{proto}|{}|{}|{}|{cred_tag:08x}",
             self.server,
             self.port,
             self.cipher,
+            self.reneg_sec,
             self.username.as_deref().unwrap_or_default()
         )
     }
@@ -418,5 +433,18 @@ mod tests {
         .unwrap();
         assert_eq!(cfg.cipher, "AES-256-GCM");
         assert_eq!(cfg.mtu, DEFAULT_MTU);
+        assert_eq!(cfg.reneg_sec, DEFAULT_RENEG_SEC);
+    }
+
+    #[test]
+    fn parses_reneg_sec() {
+        let base = format!(
+            "name: o\ntype: openvpn\nserver: vpn.example\nport: 1194\nusername: u\npassword: p\nca: \"{}\"\n",
+            CA.replace('\n', "\\n")
+        );
+        let cfg = OpenVpnOutboundConfig::from_proxy(&entry(&format!("{base}reneg-sec: 600\n"))).unwrap();
+        assert_eq!(cfg.reneg_sec, 600);
+        let cfg = OpenVpnOutboundConfig::from_proxy(&entry(&format!("{base}reneg-sec: 0\n"))).unwrap();
+        assert_eq!(cfg.reneg_sec, 0);
     }
 }

@@ -82,6 +82,7 @@ pub(super) struct DataChannel {
     send_iv: [u8; IV_SIZE],
     recv_iv: [u8; IV_SIZE],
     header: Vec<u8>,
+    key_id: u8,
     send_packet_id: u32,
     recv_highest: u32,
     recv_window: u64,
@@ -89,7 +90,7 @@ pub(super) struct DataChannel {
 }
 
 impl DataChannel {
-    pub(super) fn new(keys: &KeyMaterial, cipher: &str, peer_id: u32) -> Result<Self> {
+    pub(super) fn new(keys: &KeyMaterial, cipher: &str, peer_id: u32, key_id: u8) -> Result<Self> {
         if keys.send_hmac_key.len() < IV_SIZE - 4 || keys.recv_hmac_key.len() < IV_SIZE - 4 {
             bail!("openvpn: implicit IV key material too short");
         }
@@ -102,12 +103,18 @@ impl DataChannel {
             recv: Aead::new(cipher, &keys.recv_cipher_key)?,
             send_iv,
             recv_iv,
-            header: data_header(peer_id, 0),
+            header: data_header(peer_id, key_id),
+            key_id,
             send_packet_id: 0,
             recv_highest: 0,
             recv_window: 0,
             recv_seen: false,
         })
+    }
+
+    /// The key id this channel's epoch was negotiated under.
+    pub(super) fn key_id(&self) -> u8 {
+        self.key_id
     }
 
     /// Encrypt one inner IP packet into a framed `P_DATA_V2` packet.
@@ -254,8 +261,8 @@ mod tests {
             recv_cipher_key: client_keys.send_cipher_key.clone(),
             recv_hmac_key: client_keys.send_hmac_key.clone(),
         };
-        let mut client = DataChannel::new(&client_keys, "AES-256-GCM", 3).unwrap();
-        let mut server = DataChannel::new(&server_keys, "AES-256-GCM", 3).unwrap();
+        let mut client = DataChannel::new(&client_keys, "AES-256-GCM", 3, 0).unwrap();
+        let mut server = DataChannel::new(&server_keys, "AES-256-GCM", 3, 0).unwrap();
 
         let msg = b"an inner ip packet payload";
         let sealed = client.encrypt(msg).unwrap();
@@ -273,8 +280,8 @@ mod tests {
             recv_cipher_key: client_keys.send_cipher_key.clone(),
             recv_hmac_key: client_keys.send_hmac_key.clone(),
         };
-        let mut client = DataChannel::new(&client_keys, "AES-256-GCM", 3).unwrap();
-        let mut server = DataChannel::new(&server_keys, "AES-256-GCM", 3).unwrap();
+        let mut client = DataChannel::new(&client_keys, "AES-256-GCM", 3, 0).unwrap();
+        let mut server = DataChannel::new(&server_keys, "AES-256-GCM", 3, 0).unwrap();
         let sealed = client.encrypt(b"hello").unwrap();
         assert!(server.decrypt(&sealed).is_ok());
         assert!(server.decrypt(&sealed).is_err(), "replay must be rejected");
@@ -289,9 +296,10 @@ mod tests {
             recv_cipher_key: client_keys.send_cipher_key.clone(),
             recv_hmac_key: client_keys.send_hmac_key.clone(),
         };
-        let mut client = DataChannel::new(&client_keys, "CHACHA20-POLY1305", 7).unwrap();
-        let mut server = DataChannel::new(&server_keys, "CHACHA20-POLY1305", 7).unwrap();
+        let mut client = DataChannel::new(&client_keys, "CHACHA20-POLY1305", 7, 1).unwrap();
+        let mut server = DataChannel::new(&server_keys, "CHACHA20-POLY1305", 7, 1).unwrap();
         let sealed = client.encrypt(b"chacha payload").unwrap();
+        assert_eq!(sealed[0] & 0x07, 1, "key id carried in the header");
         assert_eq!(server.decrypt(&sealed).unwrap(), b"chacha payload");
     }
 }
