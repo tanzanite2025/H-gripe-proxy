@@ -421,10 +421,16 @@ pub struct ProxyOptions {
     #[serde(rename = "table-type")]
     pub table_type: Option<String>,
     /// Use the plain (one-byte → four-hint) downlink obfuscation instead of the
-    /// 6-bit packed downlink (`enable-pure-downlink`). The kernel implements the
-    /// pure downlink only, so this must be enabled.
+    /// 6-bit packed downlink (`enable-pure-downlink`). Defaults to `true` (pure);
+    /// `false` selects the bandwidth-optimised packed downlink codec.
     #[serde(rename = "enable-pure-downlink")]
     pub enable_pure_downlink: Option<bool>,
+    /// Sudoku session multiplexing (`multiplex`): `off`/`auto` keep one tunnel
+    /// per connection, `on` multiplexes logical streams over one native-mux
+    /// tunnel. Only `on` enables the mux data plane (matching upstream
+    /// `SessionMuxEnabled`).
+    #[serde(rename = "multiplex")]
+    pub multiplex: Option<String>,
     /// Single custom 8-character table pattern (`custom-table`) used by the
     /// entropy layout (exactly 2 `x`, 2 `p`, 4 `v`).
     #[serde(rename = "custom-table")]

@@ -14,8 +14,8 @@ use x25519_dalek::{EphemeralSecret, PublicKey};
 use crate::address::TargetAddr;
 
 use super::kip::{
-    self, KIP_TYPE_CLIENT_HELLO, KIP_TYPE_OPEN_TCP, KIP_TYPE_SERVER_HELLO, KIP_TYPE_START_UOT, derive_psk_bases,
-    derive_session_bases, read_message, write_message,
+    self, KIP_TYPE_CLIENT_HELLO, KIP_TYPE_OPEN_TCP, KIP_TYPE_SERVER_HELLO, KIP_TYPE_START_MUX, KIP_TYPE_START_UOT,
+    derive_psk_bases, derive_session_bases, read_message, write_message,
 };
 use super::obfs::ObfsStream;
 use super::record::{AeadMethod, RecordStream};
@@ -39,6 +39,14 @@ fn config_with(port: u16, method: AeadMethod, pure_downlink: bool) -> SudokuOutb
         padding_min: 0,
         padding_max: 0,
         pure_downlink,
+        session_mux: false,
+    }
+}
+
+fn config_mux(port: u16, method: AeadMethod) -> SudokuOutboundConfig {
+    SudokuOutboundConfig {
+        session_mux: true,
+        ..config_with(port, method, true)
     }
 }
 
@@ -216,6 +224,120 @@ async fn packed_downlink_full_stack_round_trip() {
         false,
     )
     .await;
+}
+
+// --- native mux (multiplex: on) ---
+
+const MUX_FRAME_OPEN: u8 = 0x01;
+const MUX_FRAME_DATA: u8 = 0x02;
+const MUX_FRAME_CLOSE: u8 = 0x03;
+const MUX_HEADER_LEN: usize = 1 + 4 + 4;
+
+fn mux_frame(frame_type: u8, stream_id: u32, payload: &[u8]) -> Vec<u8> {
+    let mut out = Vec::with_capacity(MUX_HEADER_LEN + payload.len());
+    out.push(frame_type);
+    out.extend_from_slice(&stream_id.to_be_bytes());
+    out.extend_from_slice(&(payload.len() as u32).to_be_bytes());
+    out.extend_from_slice(payload);
+    out
+}
+
+/// Accept one connection, run the handshake, read the `StartMux` preface, then
+/// run a minimal mux server that echoes each stream's `Data` back on the same
+/// stream id and mirrors its `Close`. A single accepted connection proves the
+/// client multiplexes every stream over one shared tunnel.
+async fn run_fake_mux_server(listener: TcpListener, method: AeadMethod) {
+    let (sock, _) = listener.accept().await.expect("accept");
+    let mut rec = server_handshake(sock, method, false).await;
+
+    let (typ, payload) = read_message(&mut rec).await.expect("read StartMux");
+    assert_eq!(typ, KIP_TYPE_START_MUX);
+    assert!(payload.is_empty(), "StartMux carries no payload");
+
+    let mut raw: Vec<u8> = Vec::new();
+    let mut buf = vec![0u8; 16 * 1024];
+    loop {
+        // Drain all complete frames currently buffered.
+        while raw.len() >= MUX_HEADER_LEN {
+            let len = u32::from_be_bytes([raw[5], raw[6], raw[7], raw[8]]) as usize;
+            let need = MUX_HEADER_LEN + len;
+            if raw.len() < need {
+                break;
+            }
+            let frame_type = raw[0];
+            let sid = u32::from_be_bytes([raw[1], raw[2], raw[3], raw[4]]);
+            let data = raw[MUX_HEADER_LEN..need].to_vec();
+            raw.drain(..need);
+            match frame_type {
+                // Open registers the stream; nothing is sent back until data.
+                MUX_FRAME_OPEN => {}
+                MUX_FRAME_DATA => {
+                    if !data.is_empty()
+                        && (rec.write_all(&mux_frame(MUX_FRAME_DATA, sid, &data)).await.is_err()
+                            || rec.flush().await.is_err())
+                    {
+                        return;
+                    }
+                }
+                MUX_FRAME_CLOSE => {
+                    let _ = rec.write_all(&mux_frame(MUX_FRAME_CLOSE, sid, &[])).await;
+                    let _ = rec.flush().await;
+                }
+                _ => {}
+            }
+        }
+        match rec.read(&mut buf).await {
+            Ok(0) | Err(_) => break,
+            Ok(n) => raw.extend_from_slice(&buf[..n]),
+        }
+    }
+}
+
+/// With `multiplex: on` two concurrent connections to the same server must ride
+/// one shared tunnel (the fake server accepts a single connection) and each
+/// logical stream must relay independently.
+#[tokio::test]
+async fn mux_full_stack_multiplexes_streams() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
+    let port = listener.local_addr().expect("addr").port();
+
+    let method = AeadMethod::ChaCha20Poly1305;
+    let server = tokio::spawn(run_fake_mux_server(listener, method));
+
+    let cfg = config_mux(port, method);
+    let t1 = TargetAddr::Domain("one.example".to_string(), 443);
+    let t2 = TargetAddr::Domain("two.example".to_string(), 80);
+
+    let mut s1 = connect(&cfg, &t1).await.expect("mux connect 1");
+    let mut s2 = connect(&cfg, &t2).await.expect("mux connect 2");
+
+    // Interleave writes across both streams and read each echo back.
+    s1.write_all(b"stream one payload").await.expect("write s1");
+    s1.flush().await.expect("flush s1");
+    s2.write_all(b"stream two").await.expect("write s2");
+    s2.flush().await.expect("flush s2");
+
+    let mut g1 = vec![0u8; b"stream one payload".len()];
+    s1.read_exact(&mut g1).await.expect("read s1");
+    assert_eq!(&g1, b"stream one payload");
+
+    let mut g2 = vec![0u8; b"stream two".len()];
+    s2.read_exact(&mut g2).await.expect("read s2");
+    assert_eq!(&g2, b"stream two");
+
+    // A larger payload on a reused stream exercises multi-record framing.
+    let big: Vec<u8> = (0..4096u32).map(|i| (i * 5) as u8).collect();
+    s1.write_all(&big).await.expect("write s1 big");
+    s1.flush().await.expect("flush s1 big");
+    let mut got_big = vec![0u8; big.len()];
+    s1.read_exact(&mut got_big).await.expect("read s1 big");
+    assert_eq!(got_big, big);
+
+    // The mux session lingers in the reuse registry after both streams drop, so
+    // the tunnel stays open; abort the server rather than awaiting an EOF.
+    drop(s1);
+    drop(s2);
+    server.abort();
 }
 
 /// Drive one or more UDP-over-TCP datagrams through the full stack against the

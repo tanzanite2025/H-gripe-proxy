@@ -26,13 +26,16 @@
 //! UDP-over-TCP (`StartUoT`, see [`uot`]). The uplink is always the pure
 //! (one-byte → four-hint) codec; the downlink is either the pure codec
 //! (`enable-pure-downlink: true`, the default) or the bandwidth-optimised
-//! 6-bit *packed* codec (`enable-pure-downlink: false`). Session multiplexing,
-//! the reverse channel and HTTP tunnel masking are intentionally left to
-//! follow-up work and are rejected up front rather than mis-handled.
+//! 6-bit *packed* codec (`enable-pure-downlink: false`). With `multiplex: on`
+//! the TCP data plane multiplexes logical streams over one shared tunnel via
+//! `StartMux` (see [`mux`]); UDP still rides its own `StartUoT` tunnel. The
+//! reverse channel and HTTP tunnel masking are intentionally left to follow-up
+//! work and are rejected up front rather than mis-handled.
 
 mod grid;
 mod kip;
 mod layout;
+mod mux;
 mod obfs;
 mod record;
 mod rng;
@@ -71,6 +74,9 @@ pub struct SudokuOutboundConfig {
     /// Downlink codec: the pure (one-byte → four-hint) codec when `true`
     /// (`enable-pure-downlink`, default), otherwise the 6-bit packed codec.
     pure_downlink: bool,
+    /// Multiplex logical streams over one shared tunnel via `StartMux` when
+    /// `true` (`multiplex: on`); otherwise one tunnel per connection.
+    session_mux: bool,
 }
 
 impl SudokuOutboundConfig {
@@ -79,9 +85,9 @@ impl SudokuOutboundConfig {
     /// The uplink is always the pure (one-byte → four-hint) codec; the downlink
     /// follows `enable-pure-downlink` (default `true` = pure, `false` = 6-bit
     /// packed). HTTP masking must be disabled. The tunnel then carries both TCP
-    /// (`OpenTCP`) and UDP (`StartUoT`) traffic. Session MUX and the reverse
-    /// channel are deferred to follow-up work; a non-disabled HTTP mask is
-    /// rejected here rather than silently mis-handled.
+    /// (`OpenTCP`, or `StartMux` when `multiplex: on`) and UDP (`StartUoT`)
+    /// traffic. The reverse channel is deferred to follow-up work; a non-disabled
+    /// HTTP mask is rejected here rather than silently mis-handled.
     pub fn from_proxy(entry: &ProxyEntry) -> Result<Self> {
         let opts = &entry.options;
         let server = opts
@@ -101,6 +107,15 @@ impl SudokuOutboundConfig {
         // Downlink codec follows `enable-pure-downlink` (default true = pure,
         // false = 6-bit packed); both are implemented.
         let pure_downlink = opts.enable_pure_downlink.unwrap_or(true);
+
+        // Native session mux is enabled only by `multiplex: on` (matching
+        // upstream `SessionMuxEnabled`); `off`/`auto`/absent keep one tunnel per
+        // connection.
+        let session_mux = opts
+            .multiplex
+            .as_deref()
+            .map(|m| m.trim().eq_ignore_ascii_case("on"))
+            .unwrap_or(false);
 
         // HTTP masking (legacy header and CDN tunnel) is not implemented; only an
         // explicitly disabled mask is accepted.
@@ -132,6 +147,7 @@ impl SudokuOutboundConfig {
             padding_min: opts.padding_min.unwrap_or(0),
             padding_max: opts.padding_max.unwrap_or(0),
             pure_downlink,
+            session_mux,
         })
     }
 }
@@ -185,6 +201,11 @@ async fn establish_session(config: &SudokuOutboundConfig) -> Result<BoxedStream>
 /// stream. Brings up the shared session (see [`establish_session`]), writes the
 /// `OpenTCP` request, and hands back a transparent stream.
 pub async fn connect(config: &SudokuOutboundConfig, target: &TargetAddr) -> Result<BoxedStream> {
+    if config.session_mux {
+        return mux::connect(config, target)
+            .await
+            .with_context(|| format!("sudoku: mux open to {target}"));
+    }
     let mut stream = establish_session(config).await?;
     kip::write_open_tcp(&mut stream, target)
         .await
