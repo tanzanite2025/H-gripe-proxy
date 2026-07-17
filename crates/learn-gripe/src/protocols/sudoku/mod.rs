@@ -21,11 +21,14 @@
 //!
 //! ## Scope (TCP baseline + UDP-over-TCP)
 //!
-//! This module implements the common single-table, pure-uplink / pure-downlink
-//! case with HTTP masking disabled: transparent TCP relay via `OpenTCP` and
-//! UDP relay via UDP-over-TCP (`StartUoT`, see [`uot`]). The 6-bit *packed*
-//! downlink, session multiplexing and the reverse channel are intentionally
-//! left to follow-up work and are rejected up front rather than mis-handled.
+//! This module implements the common single-table case with HTTP masking
+//! disabled: transparent TCP relay via `OpenTCP` and UDP relay via
+//! UDP-over-TCP (`StartUoT`, see [`uot`]). The uplink is always the pure
+//! (one-byte → four-hint) codec; the downlink is either the pure codec
+//! (`enable-pure-downlink: true`, the default) or the bandwidth-optimised
+//! 6-bit *packed* codec (`enable-pure-downlink: false`). Session multiplexing,
+//! the reverse channel and HTTP tunnel masking are intentionally left to
+//! follow-up work and are rejected up front rather than mis-handled.
 
 mod grid;
 mod kip;
@@ -65,16 +68,20 @@ pub struct SudokuOutboundConfig {
     /// Per-byte padding probability percentage range `[min, max]`.
     padding_min: u32,
     padding_max: u32,
+    /// Downlink codec: the pure (one-byte → four-hint) codec when `true`
+    /// (`enable-pure-downlink`, default), otherwise the 6-bit packed codec.
+    pure_downlink: bool,
 }
 
 impl SudokuOutboundConfig {
     /// Build an outbound config from a parsed `sudoku` proxy entry.
     ///
-    /// Only the pure-downlink baseline is accepted: HTTP masking must be disabled
-    /// and the pure (one-byte → four-hint) downlink must be selected. The tunnel
-    /// then carries both TCP (`OpenTCP`) and UDP (`StartUoT`) traffic. The packed
-    /// downlink, session MUX and the reverse channel are deferred to follow-up
-    /// work and are rejected here rather than silently mis-handled.
+    /// The uplink is always the pure (one-byte → four-hint) codec; the downlink
+    /// follows `enable-pure-downlink` (default `true` = pure, `false` = 6-bit
+    /// packed). HTTP masking must be disabled. The tunnel then carries both TCP
+    /// (`OpenTCP`) and UDP (`StartUoT`) traffic. Session MUX and the reverse
+    /// channel are deferred to follow-up work; a non-disabled HTTP mask is
+    /// rejected here rather than silently mis-handled.
     pub fn from_proxy(entry: &ProxyEntry) -> Result<Self> {
         let opts = &entry.options;
         let server = opts
@@ -91,11 +98,9 @@ impl SudokuOutboundConfig {
 
         let aead_method = AeadMethod::parse(opts.aead_method.as_deref().unwrap_or("").trim())?;
 
-        // The kernel implements the pure downlink only; the 6-bit packed downlink
-        // is out of scope for this baseline.
-        if opts.enable_pure_downlink != Some(true) {
-            bail!("sudoku: only the pure downlink is supported in this build; set enable-pure-downlink: true");
-        }
+        // Downlink codec follows `enable-pure-downlink` (default true = pure,
+        // false = 6-bit packed); both are implemented.
+        let pure_downlink = opts.enable_pure_downlink.unwrap_or(true);
 
         // HTTP masking (legacy header and CDN tunnel) is not implemented; only an
         // explicitly disabled mask is accepted.
@@ -126,6 +131,7 @@ impl SudokuOutboundConfig {
             custom_pattern,
             padding_min: opts.padding_min.unwrap_or(0),
             padding_max: opts.padding_max.unwrap_or(0),
+            pure_downlink,
         })
     }
 }
@@ -145,13 +151,17 @@ async fn establish_session(config: &SudokuOutboundConfig) -> Result<BoxedStream>
         .await
         .context("sudoku: dial server")?;
 
-    // Outermost on-wire layer: expand record bytes into Sudoku hint bytes.
+    // Outermost on-wire layer: expand record bytes into Sudoku hint bytes. The
+    // client always writes the pure uplink; its downlink read path switches to
+    // the packed decoder when `enable-pure-downlink` is disabled.
     let obfs = obfs::ObfsStream::new(
         inner,
         uplink,
         downlink,
         config.padding_min as i32,
         config.padding_max as i32,
+        false,
+        !config.pure_downlink,
     );
 
     // AEAD record layer, keyed initially from the PSK directional bases.
