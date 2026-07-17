@@ -9,6 +9,16 @@
 //! `packet-id || net-time || opcode/key-id || session-id || rest` (OpenVPN's
 //! `swap_hmac`). The digest defaults to SHA1 (`auth`).
 //!
+//! `tls-crypt-v2` (per-client keys): the client key file carries a per-client
+//! 2048-bit key `Kc` (used exactly like a `tls-crypt` key) plus `WKc`, an
+//! opaque server-encrypted copy of `Kc` (the client cannot read it). Every
+//! `P_CONTROL_HARD_RESET_CLIENT_V3` is `tls-crypt`-wrapped with `Kc` and then
+//! has `WKc` appended in cleartext, letting the server recover `Kc` from the
+//! first packet; all other control packets are plain `tls-crypt` with `Kc`.
+//! `WKc = T || AES-256-CTR(Ke, IV=T[..16], Kc || metadata) || len`, with
+//! `T = HMAC-SHA256(Ka, len || Kc || metadata)` under the server key — parsed
+//! here only far enough to validate the trailing `len`.
+//!
 //! `tls-crypt` (encrypt + authenticate):
 //! `opcode/key-id(1) || session-id(8) || packet-id(4) || net-time(4) || tag(32) || ciphertext`,
 //! where `tag = HMAC-SHA256(Ka, header || plaintext)` (header = the 17
@@ -34,12 +44,16 @@ use std::sync::atomic::{AtomicU32, Ordering};
 
 use aes::Aes256;
 use anyhow::{Result, anyhow, bail};
+use base64::Engine as _;
 use ctr::cipher::{KeyIvInit, StreamCipher};
 use hmac::{Hmac, Mac};
 use sha1::Sha1;
 use sha2::{Sha256, Sha512};
 
-use super::packet::{CONTROL_HEADER_SIZE, SESSION_ID_SIZE};
+use super::packet::{
+    CONTROL_HEADER_SIZE, P_CONTROL_HARD_RESET_CLIENT_V2, P_CONTROL_HARD_RESET_CLIENT_V3, SESSION_ID_SIZE,
+    parse_opcode_key_id,
+};
 
 type Aes256Ctr = ctr::Ctr128BE<Aes256>;
 
@@ -59,6 +73,16 @@ const TLS_CRYPT_KEY_LEN: usize = 32;
 
 const PEM_BEGIN: &str = "-----BEGIN OpenVPN Static key V1-----";
 const PEM_END: &str = "-----END OpenVPN Static key V1-----";
+
+const PEM_V2_CLIENT_BEGIN: &str = "-----BEGIN OpenVPN tls-crypt-v2 client key-----";
+const PEM_V2_CLIENT_END: &str = "-----END OpenVPN tls-crypt-v2 client key-----";
+
+/// `WKc` trailing big-endian length field.
+const WKC_LEN_SIZE: usize = 2;
+/// Minimum `WKc`: HMAC-SHA256 tag + encrypted 256-byte client key + length.
+const MIN_WKC_LEN: usize = TLS_CRYPT_TAG_SIZE + STATIC_KEY_SIZE + WKC_LEN_SIZE;
+/// Upstream's `TLS_CRYPT_V2_MAX_WKC_LEN`.
+const MAX_WKC_LEN: usize = 1024;
 
 /// Parse an inline "OpenVPN Static key V1" block (hex body between the PEM-like
 /// markers; `#`/`;` comment lines outside the block are ignored) into the raw
@@ -87,6 +111,52 @@ pub(super) fn parse_static_key(text: &str) -> Result<[u8; STATIC_KEY_SIZE]> {
         *out = u8::from_str_radix(pair, 16).map_err(|_| anyhow!("openvpn: static key has non-hex byte {pair:?}"))?;
     }
     Ok(key)
+}
+
+/// Parse an inline "OpenVPN tls-crypt-v2 client key" block (base64 body
+/// between the PEM-like markers) into the per-client 256-byte key `Kc` and the
+/// opaque server-wrapped `WKc` (validated only against its trailing length
+/// field; its contents are decryptable by the server alone).
+pub(super) fn parse_tls_crypt_v2_client_key(text: &str) -> Result<([u8; STATIC_KEY_SIZE], Vec<u8>)> {
+    let start = text
+        .find(PEM_V2_CLIENT_BEGIN)
+        .ok_or_else(|| anyhow!("openvpn: tls-crypt-v2 client key missing {PEM_V2_CLIENT_BEGIN:?} marker"))?;
+    let after_begin = start + PEM_V2_CLIENT_BEGIN.len();
+    let end = text[after_begin..]
+        .find(PEM_V2_CLIENT_END)
+        .ok_or_else(|| anyhow!("openvpn: tls-crypt-v2 client key missing {PEM_V2_CLIENT_END:?} marker"))?;
+    let body: String = text[after_begin..after_begin + end]
+        .chars()
+        .filter(|c| !c.is_whitespace())
+        .collect();
+    let raw = base64::engine::general_purpose::STANDARD
+        .decode(&body)
+        .map_err(|e| anyhow!("openvpn: tls-crypt-v2 client key is not valid base64: {e}"))?;
+    if raw.len() < STATIC_KEY_SIZE + MIN_WKC_LEN {
+        bail!(
+            "openvpn: tls-crypt-v2 client key too short: {} bytes (need at least {})",
+            raw.len(),
+            STATIC_KEY_SIZE + MIN_WKC_LEN
+        );
+    }
+    let (kc, wkc) = raw.split_at(STATIC_KEY_SIZE);
+    if wkc.len() > MAX_WKC_LEN {
+        bail!(
+            "openvpn: tls-crypt-v2 WKc too large: {} bytes (max {MAX_WKC_LEN})",
+            wkc.len()
+        );
+    }
+    let tail = u16::from_be_bytes(wkc[wkc.len() - WKC_LEN_SIZE..].try_into().unwrap()) as usize;
+    if tail != wkc.len() {
+        bail!(
+            "openvpn: tls-crypt-v2 WKc length field {tail} does not match its {} bytes",
+            wkc.len()
+        );
+    }
+    Ok((
+        kc.try_into().expect("split_at yields STATIC_KEY_SIZE bytes"),
+        wkc.to_vec(),
+    ))
 }
 
 /// `key-direction` semantics for the two directional key slots.
@@ -201,6 +271,7 @@ impl ReplayId {
 pub(super) enum ControlWrap {
     TlsAuth(TlsAuth),
     TlsCrypt(TlsCrypt),
+    TlsCryptV2(TlsCryptV2),
 }
 
 impl ControlWrap {
@@ -216,12 +287,31 @@ impl ControlWrap {
         Ok(Self::TlsCrypt(TlsCrypt::new(&parse_static_key(key_text)?)))
     }
 
+    pub(super) fn tls_crypt_v2(key_text: &str) -> Result<Self> {
+        let (kc, wkc) = parse_tls_crypt_v2_client_key(key_text)?;
+        Ok(Self::TlsCryptV2(TlsCryptV2 {
+            crypt: TlsCrypt::new(&kc),
+            wkc,
+        }))
+    }
+
+    /// The client hard-reset opcode this wrap mode requires: `tls-crypt-v2`
+    /// announces itself with `P_CONTROL_HARD_RESET_CLIENT_V3` (which carries
+    /// the `WKc`), everything else uses the V2 reset.
+    pub(super) fn reset_opcode(&self) -> u8 {
+        match self {
+            Self::TlsCryptV2(_) => P_CONTROL_HARD_RESET_CLIENT_V3,
+            _ => P_CONTROL_HARD_RESET_CLIENT_V2,
+        }
+    }
+
     /// Wrap one plaintext control packet (`opcode/key-id || session || rest`)
     /// for the wire.
     pub(super) fn wrap(&self, plain: &[u8]) -> Result<Vec<u8>> {
         match self {
             Self::TlsAuth(w) => w.wrap(plain),
             Self::TlsCrypt(w) => w.wrap(plain),
+            Self::TlsCryptV2(w) => w.wrap(plain),
         }
     }
 
@@ -231,6 +321,7 @@ impl ControlWrap {
         match self {
             Self::TlsAuth(w) => w.unwrap(wire),
             Self::TlsCrypt(w) => w.unwrap(wire),
+            Self::TlsCryptV2(w) => w.unwrap(wire),
         }
     }
 }
@@ -361,6 +452,28 @@ impl TlsCrypt {
         out.extend_from_slice(control_header);
         out.extend_from_slice(&plaintext);
         Ok(out)
+    }
+}
+
+/// `tls-crypt-v2`: the per-client `tls-crypt` key plus the opaque `WKc`
+/// appended to every client V3 hard reset.
+pub(super) struct TlsCryptV2 {
+    crypt: TlsCrypt,
+    wkc: Vec<u8>,
+}
+
+impl TlsCryptV2 {
+    fn wrap(&self, plain: &[u8]) -> Result<Vec<u8>> {
+        let mut out = self.crypt.wrap(plain)?;
+        let (opcode, _) = parse_opcode_key_id(plain[0]);
+        if opcode == P_CONTROL_HARD_RESET_CLIENT_V3 {
+            out.extend_from_slice(&self.wkc);
+        }
+        Ok(out)
+    }
+
+    fn unwrap(&self, wire: &[u8]) -> Result<Vec<u8>> {
+        self.crypt.unwrap(wire)
     }
 }
 
@@ -502,6 +615,62 @@ mod tests {
         let last = wire.len() - 1;
         wire[last] ^= 1;
         assert!(server.0.unwrap(&wire).is_err());
+    }
+
+    fn v2_client_key_text(kc: &[u8; STATIC_KEY_SIZE], wkc: &[u8]) -> String {
+        let mut raw = kc.to_vec();
+        raw.extend_from_slice(wkc);
+        let b64 = base64::engine::general_purpose::STANDARD.encode(&raw);
+        format!("{PEM_V2_CLIENT_BEGIN}\n{b64}\n{PEM_V2_CLIENT_END}\n")
+    }
+
+    fn test_wkc() -> Vec<u8> {
+        // Opaque to the client: tag + encrypted Kc + trailing length.
+        let mut wkc = vec![0xabu8; MIN_WKC_LEN - WKC_LEN_SIZE];
+        wkc.extend_from_slice(&(MIN_WKC_LEN as u16).to_be_bytes());
+        wkc
+    }
+
+    #[test]
+    fn tls_crypt_v2_client_key_parses_and_rejects_bad_input() {
+        let kc = parse_static_key(&test_key_text()).unwrap();
+        let wkc = test_wkc();
+        let (parsed_kc, parsed_wkc) = parse_tls_crypt_v2_client_key(&v2_client_key_text(&kc, &wkc)).unwrap();
+        assert_eq!(parsed_kc, kc);
+        assert_eq!(parsed_wkc, wkc);
+
+        assert!(parse_tls_crypt_v2_client_key("no markers").is_err());
+        assert!(parse_tls_crypt_v2_client_key(&format!("{PEM_V2_CLIENT_BEGIN}\n!!!\n{PEM_V2_CLIENT_END}")).is_err());
+        // Too short to hold Kc + a minimal WKc.
+        assert!(parse_tls_crypt_v2_client_key(&v2_client_key_text(&kc, &[0u8; 4])).is_err());
+        // Trailing length field must match the WKc size.
+        let mut bad = test_wkc();
+        let last = bad.len() - 1;
+        bad[last] ^= 1;
+        assert!(parse_tls_crypt_v2_client_key(&v2_client_key_text(&kc, &bad)).is_err());
+    }
+
+    #[test]
+    fn tls_crypt_v2_appends_wkc_to_the_v3_hard_reset_only() {
+        let kc = parse_static_key(&test_key_text()).unwrap();
+        let wkc = test_wkc();
+        let wrap = ControlWrap::tls_crypt_v2(&v2_client_key_text(&kc, &wkc)).unwrap();
+        assert_eq!(wrap.reset_opcode(), P_CONTROL_HARD_RESET_CLIENT_V3);
+
+        let mut reset = plain_packet();
+        reset[0] = P_CONTROL_HARD_RESET_CLIENT_V3 << 3;
+        let wire = wrap.wrap(&reset).unwrap();
+        assert_eq!(&wire[wire.len() - wkc.len()..], &wkc[..], "WKc appended in cleartext");
+
+        // The server (once it has Kc) reads the packet as plain tls-crypt.
+        let server = ServerTlsCrypt::new(&kc);
+        assert_eq!(server.0.unwrap(&wire[..wire.len() - wkc.len()]).unwrap(), reset);
+
+        // Other control packets are plain tls-crypt: no WKc, round-trips.
+        let ctrl = plain_packet();
+        let wire = wrap.wrap(&ctrl).unwrap();
+        assert_eq!(server.0.unwrap(&wire).unwrap(), ctrl);
+        assert_eq!(wrap.unwrap(&server.0.wrap(&ctrl).unwrap()).unwrap(), ctrl);
     }
 
     #[test]

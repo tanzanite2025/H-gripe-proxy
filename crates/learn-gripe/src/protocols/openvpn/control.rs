@@ -201,9 +201,14 @@ impl ControlChannel {
         self.state.lock().expect("openvpn control state").remote
     }
 
-    /// Send the initial client hard reset.
+    /// Send the initial client hard reset (`V3` under `tls-crypt-v2`, which
+    /// appends the `WKc` at wrap time; `V2` otherwise).
     pub(super) async fn send_reset(&self) -> Result<()> {
-        self.send(P_CONTROL_HARD_RESET_CLIENT_V2, &[]).await.map(|_| ())
+        let opcode = self
+            .wrap
+            .as_ref()
+            .map_or(P_CONTROL_HARD_RESET_CLIENT_V2, ControlWrap::reset_opcode);
+        self.send(opcode, &[]).await.map(|_| ())
     }
 
     /// Send a soft reset, opening a new key state for renegotiation.
