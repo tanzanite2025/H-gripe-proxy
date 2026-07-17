@@ -11,8 +11,9 @@
 //! - `Direct` egresses over a plain OS UDP socket;
 //! - Trojan / VLESS / VMess tunnel each datagram through their protocol UDP
 //!   framing over the (TCP/TLS/REALITY) outbound stream;
+//! - an upstream SOCKS5 proxy relays via its own `UDP ASSOCIATE`;
 //! - destinations that resolve to a non-UDP-capable outbound (`Reject`, an
-//!   upstream SOCKS5 proxy) are dropped rather than leaked.
+//!   upstream HTTP proxy) are dropped rather than leaked.
 //!
 //! Per RFC 1928 the association lives exactly as long as the TCP control
 //! connection that created it; when that connection closes we drop the egress
@@ -25,7 +26,7 @@ use std::time::Duration;
 
 use anyhow::{Context, Result, anyhow, bail};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
-use tokio::net::UdpSocket;
+use tokio::net::{TcpStream, UdpSocket};
 use tokio::sync::mpsc;
 
 use crate::address::TargetAddr;
@@ -187,6 +188,7 @@ pub(crate) async fn run_egress<S: ReplySink + Send + 'static>(
         UdpEgress::Tuic(config) => run_tuic_egress(config, target, rx, sink, idle).await,
         UdpEgress::WireGuard(config) => run_wireguard_egress(config, target, rx, sink, idle).await,
         UdpEgress::OpenVpn(config) => run_openvpn_egress(config, target, rx, sink, idle).await,
+        UdpEgress::Socks5Upstream(addr) => run_socks5_upstream_egress(addr, target, rx, sink, idle).await,
         // Proxy-stream framings (Trojan / VLESS / VMess / AnyTLS) share the
         // generic proxy egress loop. Listed explicitly (no wildcard) so a new
         // transport must pick a runner here rather than silently defaulting to
@@ -516,6 +518,63 @@ async fn run_openvpn_egress<S: ReplySink>(
     }
 }
 
+/// Upstream SOCKS5 UDP egress: open a `UDP ASSOCIATE` control connection to
+/// the upstream proxy and relay SOCKS5-wrapped datagrams through its relay
+/// socket. Per RFC 1928 the association lives exactly as long as the control
+/// connection, so it is held open for the lifetime of this egress.
+async fn run_socks5_upstream_egress<S: ReplySink>(
+    upstream: SocketAddr,
+    target: TargetAddr,
+    mut rx: mpsc::Receiver<Vec<u8>>,
+    sink: S,
+    idle: Option<Duration>,
+) -> Result<()> {
+    let mut control = TcpStream::connect(upstream)
+        .await
+        .with_context(|| format!("connect upstream SOCKS5 {upstream}"))?;
+    let mut relay_addr = socks5::client_udp_associate(&mut control)
+        .await
+        .with_context(|| format!("upstream UDP ASSOCIATE via {upstream}"))?;
+    // An unspecified bound address means "same host as the proxy".
+    if relay_addr.ip().is_unspecified() {
+        relay_addr.set_ip(upstream.ip());
+    }
+    let socket = bind_egress(relay_addr).await?;
+    socket
+        .connect(relay_addr)
+        .await
+        .with_context(|| format!("udp connect upstream relay {relay_addr}"))?;
+
+    let mut buf = vec![0u8; MAX_DATAGRAM];
+    let mut control_buf = [0u8; 256];
+    loop {
+        tokio::select! {
+            maybe = rx.recv() => match maybe {
+                Some(payload) => {
+                    let packet = socks5::encode_udp_datagram(&target, &payload);
+                    socket.send(&packet).await.with_context(|| format!("udp send to relay {relay_addr}"))?;
+                }
+                None => return Ok(()),
+            },
+            res = socket.recv(&mut buf) => {
+                let n = res.with_context(|| format!("udp recv from relay {relay_addr}"))?;
+                let (_source, offset) = socks5::parse_udp_datagram(&buf[..n])?;
+                if !sink.deliver(&buf[offset..n]).await {
+                    return Ok(());
+                }
+            }
+            res = control.read(&mut control_buf) => {
+                // The association dies with the control connection.
+                match res {
+                    Ok(0) | Err(_) => return Ok(()),
+                    Ok(_) => {}
+                }
+            }
+            _ = idle_elapsed(idle) => return Ok(()),
+        }
+    }
+}
+
 /// Proxy-tunnel UDP egress: open the protocol's UDP stream and relay datagrams
 /// in both directions, applying the protocol's per-packet framing.
 async fn run_proxy_egress<S: ReplySink>(
@@ -578,7 +637,8 @@ impl ProxyFraming {
             | UdpEgress::Masque(_)
             | UdpEgress::Tuic(_)
             | UdpEgress::WireGuard(_)
-            | UdpEgress::OpenVpn(_) => ProxyFraming::Chunked,
+            | UdpEgress::OpenVpn(_)
+            | UdpEgress::Socks5Upstream(_) => ProxyFraming::Chunked,
         }
     }
 }

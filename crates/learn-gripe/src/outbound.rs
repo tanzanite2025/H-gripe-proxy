@@ -199,6 +199,9 @@ pub enum UdpEgress {
     /// OpenVPN relays each datagram through a userspace smoltcp UDP socket
     /// whose IP packets are sealed into the `P_DATA_V2` AEAD data channel.
     OpenVpn(Box<OpenVpnOutboundConfig>),
+    /// An upstream SOCKS5 proxy relays datagrams through its own
+    /// `UDP ASSOCIATE` relay socket, one SOCKS5-wrapped datagram per packet.
+    Socks5Upstream(SocketAddr),
 }
 
 /// Whether `mode` can serve a SOCKS5 `UDP ASSOCIATE`. `Routed` resolves per
@@ -206,8 +209,8 @@ pub enum UdpEgress {
 /// UDP-capable exactly when it yields a [`UdpEgress`] (see [`udp_egress_for`]),
 /// so the list of UDP-capable protocols lives in a single place and cannot
 /// drift from what [`resolve_udp_egress`] actually builds. `Reject` and an
-/// upstream SOCKS5/HTTP proxy (which has no UDP relay path here) make the
-/// inbound refuse the association.
+/// upstream HTTP proxy (which has no UDP relay path) make the inbound refuse
+/// the association.
 pub fn supports_udp_associate(mode: &OutboundMode) -> bool {
     matches!(mode, OutboundMode::Routed(_)) || udp_egress_for(mode).is_some()
 }
@@ -244,15 +247,16 @@ fn udp_egress_for(mode: &OutboundMode) -> Option<UdpEgress> {
         OutboundMode::TrustTunnel(_) => None,
         OutboundMode::WireGuard(config) => Some(UdpEgress::WireGuard(config.clone())),
         OutboundMode::OpenVpn(config) => Some(UdpEgress::OpenVpn(config.clone())),
+        // An upstream SOCKS5 proxy relays UDP via its own `UDP ASSOCIATE`.
+        OutboundMode::Socks5Upstream { addr } => Some(UdpEgress::Socks5Upstream(*addr)),
         // `Routed` is resolved per datagram by `resolve_udp_egress` before it
         // reaches here; it has no egress of its own.
         OutboundMode::Routed(_) => None,
-        // No UDP relay path: `Reject` blocks the datagram; an upstream
-        // SOCKS5/HTTP proxy has none here; SSH / GOST relay / mieru are
-        // TCP-only; Hysteria v1 here carries TCP only (no UDP relay yet).
-        // Their associations are refused rather than leaked.
+        // No UDP relay path: `Reject` blocks the datagram; an upstream HTTP
+        // proxy has none here; SSH / GOST relay / mieru are TCP-only; Hysteria
+        // v1 here carries TCP only (no UDP relay yet). Their associations are
+        // refused rather than leaked.
         OutboundMode::Reject
-        | OutboundMode::Socks5Upstream { .. }
         | OutboundMode::Http(_)
         | OutboundMode::Ssh(_)
         | OutboundMode::GostRelay(_)
@@ -265,7 +269,7 @@ fn udp_egress_for(mode: &OutboundMode) -> Option<UdpEgress> {
 /// through `Routed` per target. `source` is the inbound client's address (when
 /// known), used so `Routed` can evaluate `SRC-PORT` rules; pass `None` when
 /// unknown. Returns `None` for destinations that cannot carry UDP (`Reject`, an
-/// upstream SOCKS5 proxy, or a rule resolving to one), so the relay drops them
+/// upstream HTTP proxy, or a rule resolving to one), so the relay drops them
 /// rather than leaking traffic.
 pub fn resolve_udp_egress(mode: &OutboundMode, target: &TargetAddr, source: Option<SocketAddr>) -> Option<UdpEgress> {
     match mode {
@@ -298,7 +302,8 @@ pub async fn connect_proxy_udp(egress: &UdpEgress, target: &TargetAddr) -> Resul
         | UdpEgress::Masque(_)
         | UdpEgress::Tuic(_)
         | UdpEgress::WireGuard(_)
-        | UdpEgress::OpenVpn(_) => {
+        | UdpEgress::OpenVpn(_)
+        | UdpEgress::Socks5Upstream(_) => {
             bail!("egress has no proxy tunnel")
         }
     }
@@ -330,7 +335,8 @@ mod tests {
     fn udp_capable_outbounds_accept_associate() {
         assert!(supports_udp_associate(&OutboundMode::Direct));
         assert!(!supports_udp_associate(&OutboundMode::Reject));
-        assert!(!supports_udp_associate(&OutboundMode::Socks5Upstream {
+        // An upstream SOCKS5 proxy relays UDP via its own `UDP ASSOCIATE`.
+        assert!(supports_udp_associate(&OutboundMode::Socks5Upstream {
             addr: "127.0.0.1:1080".parse().unwrap(),
         }));
     }
