@@ -4,7 +4,7 @@
 //! into `tx` (encrypted into `P_DATA_V2` by the device loop), decrypted inner
 //! packets from the server go into `rx`.
 
-use std::net::{IpAddr, Ipv4Addr};
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::time::Instant;
 
 use smoltcp::iface::{Config as IfaceConfig, Interface};
@@ -72,16 +72,32 @@ impl smoltcp::phy::TxToken for PhyTxToken<'_> {
     }
 }
 
-/// Build the userspace interface, assigning the pushed tunnel address at prefix
-/// 0 so every inner destination is on-link (the tunnel is the only egress).
-pub(super) fn build_interface(phy: &mut OvPhy, now: SmolInstant, local_v4: Ipv4Addr) -> Interface {
+/// Build the userspace interface, assigning the pushed tunnel address(es) at
+/// prefix 0 so every inner destination is on-link (the tunnel is the only
+/// egress).
+pub(super) fn build_interface(
+    phy: &mut OvPhy,
+    now: SmolInstant,
+    local_v4: Option<Ipv4Addr>,
+    local_v6: Option<Ipv6Addr>,
+) -> Interface {
     let config = IfaceConfig::new(HardwareAddress::Ip);
     let mut iface = Interface::new(config, phy, now);
     iface.set_any_ip(true);
     iface.update_ip_addrs(|addrs| {
-        let _ = addrs.push(IpCidr::new(IpAddress::Ipv4(local_v4), 0));
+        if let Some(v4) = local_v4 {
+            let _ = addrs.push(IpCidr::new(IpAddress::Ipv4(v4), 0));
+        }
+        if let Some(v6) = local_v6 {
+            let _ = addrs.push(IpCidr::new(IpAddress::Ipv6(v6), 0));
+        }
     });
-    let _ = iface.routes_mut().add_default_ipv4_route(local_v4);
+    if let Some(v4) = local_v4 {
+        let _ = iface.routes_mut().add_default_ipv4_route(v4);
+    }
+    if let Some(v6) = local_v6 {
+        let _ = iface.routes_mut().add_default_ipv6_route(v6);
+    }
     iface
 }
 

@@ -25,7 +25,7 @@
 //! the test proves genuine interop rather than that the code agrees with itself.
 
 use std::collections::{HashSet, VecDeque};
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::pin::Pin;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
@@ -64,6 +64,12 @@ const CLIENT_TUN_IP: Ipv4Addr = Ipv4Addr::new(10, 8, 0, 2);
 /// via `any_ip`.
 const INNER_IP: Ipv4Addr = Ipv4Addr::new(10, 8, 0, 88);
 const INNER_PORT: u16 = 9000;
+/// Tunnel IPv6 address the fake server assigns via `PUSH_REPLY ifconfig-ipv6`.
+const CLIENT_TUN_IP_V6: Ipv6Addr = Ipv6Addr::new(0xfd00, 8, 0, 0, 0, 0, 0, 2);
+/// The server's own tunnel-side IPv6 address (the `ifconfig-ipv6` remote).
+const SERVER_TUN_IP_V6: Ipv6Addr = Ipv6Addr::new(0xfd00, 8, 0, 0, 0, 0, 0, 1);
+/// Inner IPv6 target the relayed connection dials (accepted via `any_ip`).
+const INNER_IP_V6: Ipv6Addr = Ipv6Addr::new(0xfd00, 8, 0, 0, 0, 0, 0, 0x88);
 /// Data-channel peer id the server pushes.
 const PEER_ID: u32 = 5;
 const MTU: usize = 1600;
@@ -681,6 +687,9 @@ struct ServerOpts {
     /// Extra options appended verbatim to the `PUSH_REPLY` (leading comma
     /// included), e.g. `",keepalive 1 60"`.
     push_extra: String,
+    /// Give the server's inner stack an IPv6 address + default route so it can
+    /// terminate inner IPv6 flows (pair with an `ifconfig-ipv6` push_extra).
+    ipv6: bool,
     /// Notified once for every decrypted data-channel ping from the client.
     ping_seen: Option<mpsc::UnboundedSender<()>>,
     /// Notified with the key id when the server first decrypts a client data
@@ -1281,10 +1290,16 @@ async fn run_data_plane(
                 IpAddress::Ipv4(Ipv4Address::from(Ipv4Addr::new(10, 8, 0, 1))),
                 0,
             ));
+            if opts.ipv6 {
+                let _ = a.push(IpCidr::new(IpAddress::Ipv6(SERVER_TUN_IP_V6), 0));
+            }
         });
         let _ = iface
             .routes_mut()
             .add_default_ipv4_route(Ipv4Address::from(Ipv4Addr::new(10, 8, 0, 1)));
+        if opts.ipv6 {
+            let _ = iface.routes_mut().add_default_ipv6_route(SERVER_TUN_IP_V6);
+        }
         iface
     };
     let mut sockets = SocketSet::new(Vec::new());
@@ -1567,6 +1582,76 @@ async fn openvpn_udp_transport_relays_inner_udp_datagrams() {
         .expect("recv did not time out")
         .expect("udp recv");
     assert_eq!(got, payload);
+}
+
+/// A server whose `PUSH_REPLY` includes `ifconfig-ipv6` and whose inner stack
+/// terminates IPv6 flows.
+async fn start_ipv6_server() -> OpenVpnOutboundConfig {
+    start_server_opts(
+        ServerWrap::None,
+        "",
+        ServerOpts {
+            push_extra: format!(",ifconfig-ipv6 {CLIENT_TUN_IP_V6}/64 {SERVER_TUN_IP_V6}"),
+            ipv6: true,
+            ..ServerOpts::default()
+        },
+    )
+    .await
+}
+
+#[tokio::test]
+async fn openvpn_tcp_relays_an_inner_ipv6_target() {
+    let config = start_ipv6_server().await;
+    let target = TargetAddr::Ip(SocketAddr::new(IpAddr::V6(INNER_IP_V6), INNER_PORT));
+
+    let mut stream = tokio::time::timeout(Duration::from_secs(20), openvpn::connect(&config, &target))
+        .await
+        .expect("connect did not time out")
+        .expect("openvpn connect");
+
+    let payload = b"hello openvpn ipv6 tunnel";
+    stream.write_all(payload).await.unwrap();
+
+    let mut got = vec![0u8; payload.len()];
+    stream.read_exact(&mut got).await.unwrap();
+    assert_eq!(&got, payload);
+}
+
+#[tokio::test]
+async fn openvpn_relays_inner_udp_datagrams_to_an_ipv6_target() {
+    let config = start_ipv6_server().await;
+    let target = TargetAddr::Ip(SocketAddr::new(IpAddr::V6(INNER_IP_V6), INNER_PORT));
+
+    let assoc = tokio::time::timeout(Duration::from_secs(20), openvpn::connect_udp(&config, &target))
+        .await
+        .expect("connect did not time out")
+        .expect("openvpn connect_udp");
+
+    for payload in [&b"first inner ipv6 datagram"[..], &b"second one"[..]] {
+        assoc.send(payload).await.unwrap();
+        let got = tokio::time::timeout(Duration::from_secs(10), assoc.recv())
+            .await
+            .expect("recv did not time out")
+            .expect("udp recv");
+        assert_eq!(got, payload);
+    }
+}
+
+#[tokio::test]
+async fn openvpn_rejects_ipv6_target_without_ifconfig_ipv6() {
+    // The server pushes only an IPv4 `ifconfig`, so an inner IPv6 destination
+    // must be rejected with a clear error rather than hanging.
+    let config = start_server().await;
+    let target = TargetAddr::Ip(SocketAddr::new(IpAddr::V6(INNER_IP_V6), INNER_PORT));
+
+    let result = tokio::time::timeout(Duration::from_secs(20), openvpn::connect(&config, &target))
+        .await
+        .expect("connect did not time out");
+    let err = match result {
+        Ok(_) => panic!("IPv6 target must be rejected"),
+        Err(err) => err,
+    };
+    assert!(err.to_string().contains("no IPv6 address"), "{err}");
 }
 
 #[tokio::test]
