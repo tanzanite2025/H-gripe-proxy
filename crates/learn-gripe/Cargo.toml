@@ -58,6 +58,10 @@ hmac = { version = "0.12.1", default-features = false }
 # static key (with an HMAC-SHA256 SIV-style IV). Pure-Rust RustCrypto crate on
 # the same `cipher` 0.4.x trait family as cfb-mode/chacha20 above.
 ctr = { version = "0.9.2", default-features = false }
+# OpenVPN classic (non-AEAD) data channel: AES-CBC + HMAC. `cbc` is the same
+# RustCrypto `cipher` 0.4.x block-mode family as cfb-mode/ctr above; PKCS#7
+# padding comes from its `block-padding` feature.
+cbc = { version = "0.1.2", default-features = false, features = ["alloc", "block-padding"] }
 # DNS wire-format parse/serialize for the kernel DNS server. We own the product
 # logic (fake-ip allocation, mapping, upstream selection); message codec is
 # delegated to this vetted crate (already used by src-tauri via hickory 0.24).
@@ -138,6 +142,8 @@ aes = { version = "0.8.4" }
 # Independent AES-256-CTR for the fake tls-crypt OpenVPN server in
 # tests/openvpn_outbound.rs.
 ctr = { version = "0.9.2", default-features = false }
+# Independent AES-CBC for the fake CBC OpenVPN server in tests/openvpn_outbound.rs.
+cbc = { version = "0.1.2", default-features = false, features = ["alloc", "block-padding"] }
 # DNS message build/parse for the fake upstream DNS server in tests/dns.rs.
 hickory-proto = { version = "0.24", default-features = false }
 # OS RNG for the fake mieru server's nonce generation in tests/mieru_outbound.rs.

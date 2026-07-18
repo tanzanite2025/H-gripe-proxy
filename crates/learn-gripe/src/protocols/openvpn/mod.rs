@@ -1,4 +1,4 @@
-//! OpenVPN outbound data plane (TCP transport + AEAD data channel).
+//! OpenVPN outbound data plane (TCP/UDP transport + AEAD or CBC data channel).
 //!
 //! Like WireGuard, OpenVPN is an L3 encrypted tunnel, not a per-target stream
 //! proxy: to relay a TCP connection we run a userspace smoltcp TCP/IP stack
@@ -8,7 +8,7 @@
 //! connection's TCP transport.
 //!
 //! We own the protocol implementation here (framing, the reliable/acked control
-//! channel, key-method-2 + the OpenVPN PRF, and the AEAD data channel), and
+//! channel, key-method-2 + the OpenVPN PRF, and the data channel), and
 //! delegate the two "do not hand-roll" surfaces to vetted crates: the
 //! control-channel TLS handshake runs on our vendored `rustls` fork (tunnelled
 //! over `P_CONTROL_V1` messages), and the userspace TCP/IP relay runs on
@@ -19,8 +19,11 @@
 //! - **TCP and UDP transport** (`proto tcp` / `proto udp`). On UDP the reliable
 //!   control channel retransmits unacked handshake packets on a timer; the
 //!   AEAD data channel is unreliable (inner TCP recovers loss).
-//! - **AEAD data ciphers only**: `AES-256-GCM` (default), `AES-128-GCM`,
-//!   `CHACHA20-POLY1305`. CBC + HMAC ciphers are rejected.
+//! - **Data ciphers**: AEAD — `AES-256-GCM` (default), `AES-128-GCM`,
+//!   `CHACHA20-POLY1305` — plus the classic CBC + HMAC family —
+//!   `AES-128/192/256-CBC` authenticated with the `auth` digest
+//!   (SHA1 default, SHA256, SHA512). Other ciphers (e.g. `BF-CBC`) are
+//!   rejected.
 //! - **TCP and UDP relay** through the tunnel. Inner targets may be IPv4
 //!   and/or IPv6, gated on the tunnel address(es) the server pushes
 //!   (`ifconfig` / `ifconfig-ipv6`); tunnel-side DNS is not implemented
@@ -93,7 +96,7 @@ pub struct OpenVpnOutboundConfig {
     client_key_pem: Option<String>,
     username: Option<String>,
     password: Option<String>,
-    /// Normalized AEAD cipher name (e.g. `AES-256-GCM`).
+    /// Normalized data cipher name (e.g. `AES-256-GCM`, `AES-256-CBC`).
     cipher: String,
     /// Inline `tls-auth` static key (mutually exclusive with `tls_crypt`).
     tls_auth: Option<String>,
@@ -103,7 +106,8 @@ pub struct OpenVpnOutboundConfig {
     tls_crypt_v2: Option<String>,
     /// `key-direction` for `tls-auth` (`None` = bidirectional).
     key_direction: Option<u8>,
-    /// Normalized `auth` digest name for the `tls-auth` HMAC (default SHA1).
+    /// Normalized `auth` digest name (default SHA1) — keys the `tls-auth`
+    /// HMAC and the CBC data-channel HMAC.
     auth_digest: String,
     /// Whether the tunnel transport is UDP (`true`) or TCP (`false`).
     udp: bool,
@@ -140,7 +144,7 @@ impl OpenVpnOutboundConfig {
             }
         }
 
-        // Data cipher: AEAD only.
+        // Data cipher: AEAD or AES-CBC + HMAC.
         let cipher = normalize_cipher(opts.cipher.as_deref())?;
 
         // Compression is not implemented.
@@ -175,8 +179,8 @@ impl OpenVpnOutboundConfig {
         if key_direction.is_some() && tls_auth.is_none() {
             bail!("openvpn: `key-direction` requires `tls-auth` (tls-crypt has a fixed direction)");
         }
-        // `auth` names the tls-auth HMAC digest (the data channel is AEAD-only,
-        // where the digest is unused beyond the options string).
+        // `auth` names the HMAC digest for tls-auth and for the CBC data
+        // channel (AEAD ciphers ignore it beyond the options string).
         let auth_digest = match opts.auth.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
             Some(name) => tlswrap::AuthDigest::parse(name)?.name().to_string(),
             None => "SHA1".to_string(),
@@ -295,8 +299,9 @@ fn normalize_cipher(cipher: Option<&str>) -> Result<String> {
     let upper = raw.to_ascii_uppercase();
     match upper.as_str() {
         "AES-128-GCM" | "AES-256-GCM" | "CHACHA20-POLY1305" => Ok(upper),
+        "AES-128-CBC" | "AES-192-CBC" | "AES-256-CBC" => Ok(upper),
         other => bail!(
-            "openvpn: unsupported `cipher` {other:?} (AEAD ciphers only: AES-128-GCM, AES-256-GCM, CHACHA20-POLY1305)"
+            "openvpn: unsupported `cipher` {other:?} (supported: AES-128-GCM, AES-256-GCM, CHACHA20-POLY1305, AES-128-CBC, AES-192-CBC, AES-256-CBC)"
         ),
     }
 }
@@ -393,9 +398,21 @@ mod tests {
     }
 
     #[test]
-    fn rejects_cbc_cipher() {
+    fn accepts_aes_cbc_ciphers() {
+        for cipher in ["AES-128-CBC", "AES-192-CBC", "aes-256-cbc"] {
+            let cfg = OpenVpnOutboundConfig::from_proxy(&entry(&format!(
+                "name: o\ntype: openvpn\nserver: vpn.example\nport: 1194\ncipher: {cipher}\nusername: u\npassword: p\nca: \"{}\"\n",
+                CA.replace('\n', "\\n")
+            )))
+            .unwrap();
+            assert_eq!(cfg.cipher, cipher.to_ascii_uppercase());
+        }
+    }
+
+    #[test]
+    fn rejects_unsupported_cipher() {
         let err = OpenVpnOutboundConfig::from_proxy(&entry(&format!(
-            "name: o\ntype: openvpn\nserver: vpn.example\nport: 1194\ncipher: AES-256-CBC\nusername: u\npassword: p\nca: \"{}\"\n",
+            "name: o\ntype: openvpn\nserver: vpn.example\nport: 1194\ncipher: BF-CBC\nusername: u\npassword: p\nca: \"{}\"\n",
             CA.replace('\n', "\\n")
         )))
         .unwrap_err();

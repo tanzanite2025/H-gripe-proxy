@@ -222,7 +222,7 @@ impl AuthDigest {
         }
     }
 
-    fn size(self) -> usize {
+    pub(super) fn size(self) -> usize {
         match self {
             Self::Sha1 => 20,
             Self::Sha256 => 32,
@@ -230,7 +230,7 @@ impl AuthDigest {
         }
     }
 
-    fn mac(self, key: &[u8], parts: &[&[u8]]) -> Vec<u8> {
+    pub(super) fn mac(self, key: &[u8], parts: &[&[u8]]) -> Vec<u8> {
         fn run<M: Mac + hmac::digest::KeyInit>(key: &[u8], parts: &[&[u8]]) -> Vec<u8> {
             let mut mac = <M as hmac::digest::KeyInit>::new_from_slice(key).expect("hmac accepts any key length");
             for part in parts {
@@ -482,7 +482,7 @@ fn aes256_ctr(key: &[u8; TLS_CRYPT_KEY_LEN], iv: &[u8], data: &mut [u8]) {
     cipher.apply_keystream(data);
 }
 
-fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
+pub(super) fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
     if a.len() != b.len() {
         return false;
     }

@@ -33,6 +33,8 @@ use std::task::{Context as TaskContext, Poll};
 use std::time::{Duration, Instant};
 
 use aes::Aes256;
+use aes::cipher::block_padding::Pkcs7;
+use aes::cipher::{BlockDecryptMut, BlockEncryptMut};
 use aes_gcm::Aes256Gcm;
 use aes_gcm::aead::{Aead, KeyInit, Payload};
 use ctr::cipher::{KeyIvInit, StreamCipher};
@@ -40,7 +42,7 @@ use hmac::{Hmac, Mac};
 use learn_gripe::{OpenVpnOutboundConfig, ProxyEntry, TargetAddr, openvpn};
 use md5::Md5;
 use sha1::Sha1;
-use sha2::Sha256;
+use sha2::{Sha256, Sha512};
 use smoltcp::iface::{Config as IfaceConfig, Interface, SocketSet};
 use smoltcp::phy::{Device, DeviceCapabilities, Medium, RxToken, TxToken};
 use smoltcp::socket::{tcp, udp};
@@ -465,13 +467,64 @@ fn openvpn_prf(secret: &[u8], label: &str, seed: &[u8], out: &mut [u8]) {
     }
 }
 
-/// Directional AES-256-GCM material derived on the server side (send/recv are
-/// the mirror of the client's).
-struct ServerKeys {
-    send_cipher: Aes256Gcm,
-    recv_cipher: Aes256Gcm,
-    send_iv: [u8; 12],
-    recv_iv: [u8; 12],
+/// Data-channel digest for the CBC server path (mirrors the client's `auth`).
+#[derive(Clone, Copy)]
+enum CbcDigest {
+    Sha1,
+    Sha256,
+    Sha512,
+}
+
+impl CbcDigest {
+    fn from_auth(auth: &str) -> Self {
+        match auth {
+            "SHA256" => Self::Sha256,
+            "SHA512" => Self::Sha512,
+            _ => Self::Sha1,
+        }
+    }
+
+    fn size(self) -> usize {
+        match self {
+            Self::Sha1 => 20,
+            Self::Sha256 => 32,
+            Self::Sha512 => 64,
+        }
+    }
+
+    fn mac(self, key: &[u8], parts: &[&[u8]]) -> Vec<u8> {
+        fn run<M: Mac + KeyInit>(key: &[u8], parts: &[&[u8]]) -> Vec<u8> {
+            let mut mac = <M as KeyInit>::new_from_slice(key).unwrap();
+            for p in parts {
+                mac.update(p);
+            }
+            mac.finalize().into_bytes().to_vec()
+        }
+        match self {
+            Self::Sha1 => run::<Hmac<Sha1>>(key, parts),
+            Self::Sha256 => run::<Hmac<Sha256>>(key, parts),
+            Self::Sha512 => run::<Hmac<Sha512>>(key, parts),
+        }
+    }
+}
+
+/// Directional data-channel material derived on the server side (send/recv are
+/// the mirror of the client's). GCM uses an implicit IV; CBC pairs a random-IV
+/// AES-CBC cipher with an HMAC over `IV || ciphertext`.
+enum ServerKeys {
+    Gcm {
+        send_cipher: Aes256Gcm,
+        recv_cipher: Aes256Gcm,
+        send_iv: [u8; 12],
+        recv_iv: [u8; 12],
+    },
+    Cbc {
+        send_key: Vec<u8>,
+        recv_key: Vec<u8>,
+        send_hmac: Vec<u8>,
+        recv_hmac: Vec<u8>,
+        digest: CbcDigest,
+    },
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -483,6 +536,8 @@ fn derive_server_keys(
     server_r2: &[u8],
     client_session: [u8; 8],
     server_session: [u8; 8],
+    cipher: &str,
+    auth: &str,
 ) -> ServerKeys {
     let mut master = [0u8; 48];
     let mut seed = Vec::new();
@@ -500,18 +555,41 @@ fn derive_server_keys(
 
     let client_to_server = &key_block[..128];
     let server_to_client = &key_block[128..];
+
     // The server receives on the client's send keys and vice versa.
-    let recv_cipher = Aes256Gcm::new_from_slice(&client_to_server[..32]).unwrap();
-    let send_cipher = Aes256Gcm::new_from_slice(&server_to_client[..32]).unwrap();
-    let mut recv_iv = [0u8; 12];
-    let mut send_iv = [0u8; 12];
-    recv_iv[4..].copy_from_slice(&client_to_server[64..72]);
-    send_iv[4..].copy_from_slice(&server_to_client[64..72]);
-    ServerKeys {
-        send_cipher,
-        recv_cipher,
-        send_iv,
-        recv_iv,
+    if let Some(key_len) = cbc_key_len(cipher) {
+        let digest = CbcDigest::from_auth(auth);
+        let hlen = digest.size();
+        ServerKeys::Cbc {
+            recv_key: client_to_server[..key_len].to_vec(),
+            send_key: server_to_client[..key_len].to_vec(),
+            recv_hmac: client_to_server[64..64 + hlen].to_vec(),
+            send_hmac: server_to_client[64..64 + hlen].to_vec(),
+            digest,
+        }
+    } else {
+        let recv_cipher = Aes256Gcm::new_from_slice(&client_to_server[..32]).unwrap();
+        let send_cipher = Aes256Gcm::new_from_slice(&server_to_client[..32]).unwrap();
+        let mut recv_iv = [0u8; 12];
+        let mut send_iv = [0u8; 12];
+        recv_iv[4..].copy_from_slice(&client_to_server[64..72]);
+        send_iv[4..].copy_from_slice(&server_to_client[64..72]);
+        ServerKeys::Gcm {
+            send_cipher,
+            recv_cipher,
+            send_iv,
+            recv_iv,
+        }
+    }
+}
+
+/// AES-CBC key length for a cipher name, or `None` for the (GCM) default.
+fn cbc_key_len(cipher: &str) -> Option<usize> {
+    match cipher {
+        "AES-128-CBC" => Some(16),
+        "AES-192-CBC" => Some(24),
+        "AES-256-CBC" => Some(32),
+        _ => None,
     }
 }
 
@@ -535,48 +613,118 @@ impl ServerKeys {
     fn seal(&self, key_id: u8, packet_id: u32, plaintext: &[u8]) -> Vec<u8> {
         let header = data_header(PEER_ID, key_id);
         let pid = packet_id.to_be_bytes();
-        let mut aad = Vec::new();
-        aad.extend_from_slice(&header);
-        aad.extend_from_slice(&pid);
-        let sealed = self
-            .send_cipher
-            .encrypt(
-                (&nonce(&self.send_iv, packet_id)).into(),
-                Payload {
-                    msg: plaintext,
-                    aad: &aad,
-                },
-            )
-            .unwrap();
-        let (ct, tag) = sealed.split_at(sealed.len() - 16);
-        let mut out = Vec::new();
-        out.extend_from_slice(&header);
-        out.extend_from_slice(&pid);
-        out.extend_from_slice(tag);
-        out.extend_from_slice(ct);
-        out
+        match self {
+            ServerKeys::Gcm {
+                send_cipher, send_iv, ..
+            } => {
+                let mut aad = Vec::new();
+                aad.extend_from_slice(&header);
+                aad.extend_from_slice(&pid);
+                let sealed = send_cipher
+                    .encrypt(
+                        (&nonce(send_iv, packet_id)).into(),
+                        Payload {
+                            msg: plaintext,
+                            aad: &aad,
+                        },
+                    )
+                    .unwrap();
+                let (ct, tag) = sealed.split_at(sealed.len() - 16);
+                let mut out = Vec::new();
+                out.extend_from_slice(&header);
+                out.extend_from_slice(&pid);
+                out.extend_from_slice(tag);
+                out.extend_from_slice(ct);
+                out
+            }
+            ServerKeys::Cbc {
+                send_key,
+                send_hmac,
+                digest,
+                ..
+            } => {
+                let mut iv = [0u8; 16];
+                getrandom::fill(&mut iv).unwrap();
+                let mut inner = Vec::new();
+                inner.extend_from_slice(&pid);
+                inner.extend_from_slice(plaintext);
+                let ct = cbc_encrypt(send_key, &iv, &inner);
+                let mac = digest.mac(send_hmac, &[&iv, &ct]);
+                let mut out = Vec::new();
+                out.extend_from_slice(&header);
+                out.extend_from_slice(&mac);
+                out.extend_from_slice(&iv);
+                out.extend_from_slice(&ct);
+                out
+            }
+        }
     }
 
     fn open(&self, packet: &[u8]) -> Option<Vec<u8>> {
-        let header = &packet[..4];
-        let pid = &packet[4..8];
-        let tag = &packet[8..24];
-        let ct = &packet[24..];
-        let packet_id = u32::from_be_bytes(pid.try_into().unwrap());
-        let mut combined = Vec::from(ct);
-        combined.extend_from_slice(tag);
-        let mut aad = Vec::new();
-        aad.extend_from_slice(header);
-        aad.extend_from_slice(pid);
-        self.recv_cipher
-            .decrypt(
-                (&nonce(&self.recv_iv, packet_id)).into(),
-                Payload {
-                    msg: &combined,
-                    aad: &aad,
-                },
-            )
-            .ok()
+        match self {
+            ServerKeys::Gcm {
+                recv_cipher, recv_iv, ..
+            } => {
+                let header = &packet[..4];
+                let pid = &packet[4..8];
+                let tag = &packet[8..24];
+                let ct = &packet[24..];
+                let packet_id = u32::from_be_bytes(pid.try_into().unwrap());
+                let mut combined = Vec::from(ct);
+                combined.extend_from_slice(tag);
+                let mut aad = Vec::new();
+                aad.extend_from_slice(header);
+                aad.extend_from_slice(pid);
+                recv_cipher
+                    .decrypt(
+                        (&nonce(recv_iv, packet_id)).into(),
+                        Payload {
+                            msg: &combined,
+                            aad: &aad,
+                        },
+                    )
+                    .ok()
+            }
+            ServerKeys::Cbc {
+                recv_key,
+                recv_hmac,
+                digest,
+                ..
+            } => {
+                let hlen = digest.size();
+                let mac = &packet[4..4 + hlen];
+                let iv: [u8; 16] = packet[4 + hlen..4 + hlen + 16].try_into().ok()?;
+                let ct = &packet[4 + hlen + 16..];
+                if digest.mac(recv_hmac, &[&iv, ct]) != mac {
+                    return None;
+                }
+                let plain = cbc_decrypt(recv_key, &iv, ct)?;
+                // Strip the leading 4-byte packet id.
+                Some(plain.get(4..)?.to_vec())
+            }
+        }
+    }
+}
+
+fn cbc_encrypt(key: &[u8], iv: &[u8; 16], plaintext: &[u8]) -> Vec<u8> {
+    match key.len() {
+        16 => cbc::Encryptor::<aes::Aes128>::new(key.into(), iv.into()).encrypt_padded_vec_mut::<Pkcs7>(plaintext),
+        24 => cbc::Encryptor::<aes::Aes192>::new(key.into(), iv.into()).encrypt_padded_vec_mut::<Pkcs7>(plaintext),
+        _ => cbc::Encryptor::<Aes256>::new(key.into(), iv.into()).encrypt_padded_vec_mut::<Pkcs7>(plaintext),
+    }
+}
+
+fn cbc_decrypt(key: &[u8], iv: &[u8; 16], ciphertext: &[u8]) -> Option<Vec<u8>> {
+    match key.len() {
+        16 => cbc::Decryptor::<aes::Aes128>::new(key.into(), iv.into())
+            .decrypt_padded_vec_mut::<Pkcs7>(ciphertext)
+            .ok(),
+        24 => cbc::Decryptor::<aes::Aes192>::new(key.into(), iv.into())
+            .decrypt_padded_vec_mut::<Pkcs7>(ciphertext)
+            .ok(),
+        _ => cbc::Decryptor::<Aes256>::new(key.into(), iv.into())
+            .decrypt_padded_vec_mut::<Pkcs7>(ciphertext)
+            .ok(),
     }
 }
 
@@ -698,6 +846,10 @@ struct ServerOpts {
     /// If set, the server initiates a soft-reset renegotiation itself this long
     /// after the data phase starts (TCP server only).
     initiate_rekey_after: Option<Duration>,
+    /// Data cipher the server derives keys for (empty = `AES-256-GCM`).
+    data_cipher: String,
+    /// `auth` digest for the CBC data-channel HMAC (empty = `SHA1`).
+    auth: String,
 }
 
 /// Everything the TCP data plane needs to renegotiate keys mid-session.
@@ -711,6 +863,8 @@ struct DataPlaneRekey {
     wrap_pid: Arc<AtomicU32>,
     server_session: [u8; 8],
     client_session: [u8; 8],
+    data_cipher: String,
+    auth: String,
 }
 
 // --- the fake OpenVPN server --------------------------------------------------
@@ -922,6 +1076,8 @@ async fn serve_openvpn(tcp: tokio::net::TcpStream, wrap: ServerWrap, opts: Serve
         &server_r2,
         client_session,
         server_session,
+        &opts.data_cipher,
+        &opts.auth,
     );
 
     // 5. Push negotiation: wait for PUSH_REQUEST, reply with the assigned addr.
@@ -953,6 +1109,8 @@ async fn serve_openvpn(tcp: tokio::net::TcpStream, wrap: ServerWrap, opts: Serve
         wrap_pid,
         server_session,
         client_session,
+        data_cipher: opts.data_cipher.clone(),
+        auth: opts.auth.clone(),
     };
     run_data_plane(keys, out, &mut data_rx, opts, Some(rekey)).await;
 }
@@ -1125,6 +1283,8 @@ async fn serve_openvpn_udp(socket: Arc<UdpSocket>, drop_first_reset: bool, wrap:
         &server_r2,
         client_session,
         server_session,
+        &opts.data_cipher,
+        &opts.auth,
     );
 
     let mut push_buf = Vec::new();
@@ -1234,6 +1394,8 @@ async fn start_server_rekey(
         outbound_tx: out_tx,
     };
     let (server_session, client_session) = (rk.server_session, rk.client_session);
+    let data_cipher = rk.data_cipher.clone();
+    let auth = rk.auth.clone();
     let keys_tx = keys_tx.clone();
     tokio::spawn(async move {
         let mut tls = tls_acceptor().accept(io).await.expect("rekey TLS handshake");
@@ -1254,6 +1416,8 @@ async fn start_server_rekey(
             &server_r2,
             client_session,
             server_session,
+            &data_cipher,
+            &auth,
         );
         let _ = keys_tx.send((key_id, keys));
     });
@@ -1437,6 +1601,16 @@ async fn start_server_with(wrap: ServerWrap, extra_yaml: &str) -> OpenVpnOutboun
 async fn start_server_opts(wrap: ServerWrap, extra_yaml: &str, opts: ServerOpts) -> OpenVpnOutboundConfig {
     let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
     let addr = listener.local_addr().unwrap();
+    let cipher = if opts.data_cipher.is_empty() {
+        "AES-256-GCM".to_string()
+    } else {
+        opts.data_cipher.clone()
+    };
+    let auth_yaml = if opts.auth.is_empty() {
+        String::new()
+    } else {
+        format!("auth: {}\n", opts.auth)
+    };
     tokio::spawn(async move {
         while let Ok((tcp, _)) = listener.accept().await {
             tokio::spawn(serve_openvpn(tcp, wrap.clone(), opts.clone()));
@@ -1445,8 +1619,10 @@ async fn start_server_opts(wrap: ServerWrap, extra_yaml: &str, opts: ServerOpts)
 
     let ca = TEST_CA.replace('\n', "\\n");
     let yaml = format!(
-        "name: o\ntype: openvpn\nserver: 127.0.0.1\nport: {}\nproto: tcp\nusername: u\npassword: p\ncipher: AES-256-GCM\nca: \"{}\"\n{}",
+        "name: o\ntype: openvpn\nserver: 127.0.0.1\nport: {}\nproto: tcp\nusername: u\npassword: p\ncipher: {}\n{}ca: \"{}\"\n{}",
         addr.port(),
+        cipher,
+        auth_yaml,
         ca,
         extra_yaml,
     );
@@ -1487,6 +1663,69 @@ async fn openvpn_tcp_round_trips_a_large_payload() {
         .expect("openvpn connect");
 
     // 64 KiB spans many tunnel frames (inner MTU 1500).
+    let payload: Vec<u8> = (0..64 * 1024).map(|i| (i % 251) as u8).collect();
+    let writer_payload = payload.clone();
+    let (mut rd, mut wr) = tokio::io::split(stream);
+    let writer = tokio::spawn(async move {
+        wr.write_all(&writer_payload).await.unwrap();
+        wr.flush().await.unwrap();
+    });
+
+    let mut got = vec![0u8; payload.len()];
+    rd.read_exact(&mut got).await.unwrap();
+    writer.await.unwrap();
+    assert_eq!(got, payload);
+}
+
+/// End-to-end over the classic CBC + HMAC data channel: the fake server derives
+/// directional AES-CBC/HMAC keys independently and speaks the
+/// `header || HMAC || IV || CBC(packet-id || payload)` framing, exercising every
+/// supported key size against a representative digest.
+#[tokio::test]
+async fn openvpn_tcp_cbc_round_trips_a_small_payload() {
+    for (cipher, auth) in [
+        ("AES-128-CBC", "SHA1"),
+        ("AES-192-CBC", "SHA256"),
+        ("AES-256-CBC", "SHA512"),
+    ] {
+        let opts = ServerOpts {
+            data_cipher: cipher.to_string(),
+            auth: auth.to_string(),
+            ..ServerOpts::default()
+        };
+        let config = start_server_opts(ServerWrap::None, "", opts).await;
+        let target = TargetAddr::Ip(SocketAddr::new(IpAddr::V4(INNER_IP), INNER_PORT));
+
+        let mut stream = tokio::time::timeout(Duration::from_secs(20), openvpn::connect(&config, &target))
+            .await
+            .unwrap_or_else(|_| panic!("connect did not time out ({cipher}/{auth})"))
+            .unwrap_or_else(|e| panic!("openvpn connect ({cipher}/{auth}): {e:?}"));
+
+        let payload = b"hello openvpn cbc tunnel";
+        stream.write_all(payload).await.unwrap();
+        let mut got = vec![0u8; payload.len()];
+        stream.read_exact(&mut got).await.unwrap();
+        assert_eq!(&got, payload, "cipher {cipher}, auth {auth}");
+    }
+}
+
+/// A larger CBC payload spans many tunnel frames and multiple CBC blocks per
+/// frame, catching PKCS#7/HMAC boundary bugs the small round-trip would miss.
+#[tokio::test]
+async fn openvpn_tcp_cbc_round_trips_a_large_payload() {
+    let opts = ServerOpts {
+        data_cipher: "AES-256-CBC".to_string(),
+        auth: "SHA256".to_string(),
+        ..ServerOpts::default()
+    };
+    let config = start_server_opts(ServerWrap::None, "", opts).await;
+    let target = TargetAddr::Ip(SocketAddr::new(IpAddr::V4(INNER_IP), INNER_PORT));
+
+    let stream = tokio::time::timeout(Duration::from_secs(20), openvpn::connect(&config, &target))
+        .await
+        .expect("connect did not time out")
+        .expect("openvpn connect");
+
     let payload: Vec<u8> = (0..64 * 1024).map(|i| (i % 251) as u8).collect();
     let writer_payload = payload.clone();
     let (mut rd, mut wr) = tokio::io::split(stream);
